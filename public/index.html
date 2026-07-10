@@ -160,6 +160,7 @@
   .modal .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
   .btn-secondary{padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:13.5px;cursor:pointer}
   .btn-primary{padding:10px 18px;border-radius:12px;border:none;background:var(--cyan-grad);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer}
+  .btn-danger{padding:10px 16px;border-radius:12px;border:1px solid var(--red-soft);background:#fff;color:var(--red);font-weight:700;font-size:13.5px;cursor:pointer}
   .tagedit{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .tagedit .chip{cursor:pointer}
   .tagedit .chip::after{content:" ×";font-weight:800}
@@ -304,6 +305,7 @@
       <input class="search" id="contactSearch" placeholder="Search contacts…" />
       <div style="display:flex;gap:10px;position:relative">
         <button class="btn-secondary" id="contactFilterBtn">Filters <span id="contactFilterCount"></span></button>
+        <button class="btn-danger" id="deleteContactsBtn" style="display:none">Delete Selected (<span id="deleteContactsCount">0</span>)</button>
         <button class="gbtn" id="addContactBtn">+ Add Contact</button>
         <div class="filterpanel" id="contactFilterPanel">
           <div class="fp-row">
@@ -334,8 +336,8 @@
     <div class="chiprow" id="contactFilterChips"></div>
     <div class="card" style="margin-top:0">
       <table>
-        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th></tr></thead>
-        <tbody id="contactsBody"><tr><td colspan="4" class="loading">Loading…</td></tr></tbody>
+        <thead><tr><th style="width:32px"><input type="checkbox" id="contactSelectAll" /></th><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th></tr></thead>
+        <tbody id="contactsBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -419,7 +421,10 @@
 
   <!-- CONVERSATIONS -->
   <section class="section" id="tab-conversations">
-    <h1 class="page-title">Conversations</h1>
+    <div class="toolbar">
+      <h1 class="page-title" style="margin-bottom:0">Conversations</h1>
+      <button class="gbtn" id="startConvoBtn">+ Start Conversation</button>
+    </div>
     <div class="convo-layout">
       <div class="card convo-list-pane" style="margin-top:0">
         <div id="convoList"><div class="loading">Loading…</div></div>
@@ -450,6 +455,20 @@
     <div class="actions">
       <button class="btn-secondary" data-close="contactModal">Cancel</button>
       <button class="btn-primary" id="cSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Start Conversation modal -->
+<div class="overlay" id="startConvoModal">
+  <div class="modal">
+    <h3>Start Conversation</h3>
+    <label>Name <span class="muted" style="font-weight:500">(optional)</span></label><input id="scName" />
+    <label>Phone</label><input id="scPhone" type="tel" required />
+    <label>Email <span class="muted" style="font-weight:500">(optional)</span></label><input id="scEmail" type="email" />
+    <div class="actions">
+      <button class="btn-secondary" data-close="startConvoModal">Cancel</button>
+      <button class="btn-primary" id="scSave">Start</button>
     </div>
   </div>
 </div>

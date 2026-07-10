@@ -112,6 +112,10 @@ function updateContact(id, { firstName, lastName, email, phone }) {
   }).then((d) => d.contact);
 }
 
+function deleteContact(id) {
+  return request('DELETE', `/contacts/${id}`);
+}
+
 // GHL itself blocks creating a contact that duplicates an existing one by
 // phone or email ("This location does not allow duplicated contacts").
 // Rather than let intake hard-fail for a returning customer, attempt the
@@ -400,6 +404,23 @@ function createConversation({ contactId }) {
   );
 }
 
+// A contact can only ever have one conversation -- GHL rejects a second
+// create attempt with 400 "Conversation already exists", but usefully
+// includes the existing conversationId right on the error body. Same
+// attempt-then-recover shape as findOrCreateContact.
+async function findOrCreateConversation({ contactId }) {
+  try {
+    const conversation = await createConversation({ contactId });
+    return { conversation, reused: false };
+  } catch (err) {
+    const existingId = err instanceof GhlApiError && err.details?.conversationId;
+    if (existingId) {
+      return { conversation: { id: existingId, contactId }, reused: true };
+    }
+    throw err;
+  }
+}
+
 function listConversations({ limit } = {}) {
   const { locationId } = config();
   return request('GET', '/conversations/search', { query: { locationId, limit: limit || 50 } }).then(
@@ -636,6 +657,7 @@ module.exports = {
   countContactsCreatedSince,
   createContact,
   updateContact,
+  deleteContact,
   findOrCreateContact,
   addTags,
   removeTags,
@@ -649,6 +671,7 @@ module.exports = {
   assignCategoryFiles,
   uploadMedia,
   createConversation,
+  findOrCreateConversation,
   listConversations,
   getConversationMessages,
   sendMessage,

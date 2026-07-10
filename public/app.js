@@ -225,11 +225,21 @@
   }
 
   let lastContactQuery = '';
+  const selectedContactIds = new Set();
+
+  function updateDeleteContactsUI() {
+    const btn = document.getElementById('deleteContactsBtn');
+    btn.style.display = selectedContactIds.size ? 'inline-flex' : 'none';
+    document.getElementById('deleteContactsCount').textContent = selectedContactIds.size;
+    const selectAll = document.getElementById('contactSelectAll');
+    selectAll.checked = contactsCache.length > 0 && selectedContactIds.size === contactsCache.length;
+  }
 
   async function loadContacts(query) {
     if (query !== undefined) lastContactQuery = query;
+    selectedContactIds.clear();
     const body = document.getElementById('contactsBody');
-    body.innerHTML = '<tr><td colspan="4" class="loading">Loading…</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
     try {
       const params = new URLSearchParams();
       if (lastContactQuery) params.set('query', lastContactQuery);
@@ -240,26 +250,58 @@
       const data = await api('/contacts' + (qs ? `?${qs}` : ''));
       contactsCache = data.contacts || [];
       body.innerHTML = '';
+      updateDeleteContactsUI();
       if (!contactsCache.length) {
-        body.innerHTML = '<tr><td colspan="4" class="muted">No contacts found.</td></tr>';
+        body.innerHTML = '<tr><td colspan="5" class="muted">No contacts found.</td></tr>';
         return;
       }
       contactsCache.forEach((c) => {
         const tr = document.createElement('tr');
         tr.className = 'rowlink';
         tr.innerHTML = `
+          <td><input type="checkbox" class="contact-check" data-id="${c.id}" /></td>
           <td>${contactName(c)}</td>
           <td>${c.email || '<span class="muted">—</span>'}</td>
           <td>${c.phone || '<span class="muted">—</span>'}</td>
           <td>${(c.tags || []).map((t) => `<span class="chip">${t}</span>`).join('') || '<span class="muted">—</span>'}</td>
         `;
-        tr.addEventListener('click', () => openContactDetail(c.id));
+        tr.addEventListener('click', (e) => {
+          if (e.target.classList.contains('contact-check')) return;
+          openContactDetail(c.id);
+        });
+        tr.querySelector('.contact-check').addEventListener('change', (e) => {
+          if (e.target.checked) selectedContactIds.add(c.id);
+          else selectedContactIds.delete(c.id);
+          updateDeleteContactsUI();
+        });
         body.appendChild(tr);
       });
     } catch (err) {
-      body.innerHTML = `<tr><td colspan="4">${err.message}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="5">${err.message}</td></tr>`;
     }
   }
+
+  document.getElementById('contactSelectAll').addEventListener('change', (e) => {
+    selectedContactIds.clear();
+    if (e.target.checked) contactsCache.forEach((c) => selectedContactIds.add(c.id));
+    document.querySelectorAll('.contact-check').forEach((cb) => (cb.checked = e.target.checked));
+    updateDeleteContactsUI();
+  });
+
+  document.getElementById('deleteContactsBtn').addEventListener('click', async () => {
+    const ids = Array.from(selectedContactIds);
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} contact${ids.length > 1 ? 's' : ''}? This can't be undone.`)) return;
+
+    const results = await Promise.allSettled(ids.map((id) => api(`/contacts/${id}`, { method: 'DELETE' })));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    const succeeded = results.length - failed;
+    toast(
+      failed ? `Deleted ${succeeded}, ${failed} failed.` : `Deleted ${succeeded} contact${succeeded > 1 ? 's' : ''}.`,
+      Boolean(failed)
+    );
+    loadContacts(lastContactQuery);
+  });
 
   let searchDebounce;
   document.getElementById('contactSearch').addEventListener('input', (e) => {
@@ -1186,6 +1228,48 @@
       toast(err.message, true);
     }
   }
+
+  document.getElementById('startConvoBtn').addEventListener('click', () => {
+    ['scName', 'scPhone', 'scEmail'].forEach((id) => (document.getElementById(id).value = ''));
+    openModal('startConvoModal');
+  });
+
+  document.getElementById('scSave').addEventListener('click', async () => {
+    const name = document.getElementById('scName').value.trim();
+    const phone = document.getElementById('scPhone').value.trim();
+    const email = document.getElementById('scEmail').value.trim();
+    if (!phone) return toast('Phone is required.', true);
+    try {
+      const { contact, conversation } = await api('/conversations', {
+        method: 'POST',
+        body: JSON.stringify({ name, phone, email }),
+      });
+      closeModal('startConvoModal');
+
+      // Use the write's own response directly rather than refetching --
+      // /conversations has the same search-index lag documented elsewhere
+      // in this app, so a just-created conversation might not show up yet.
+      const convoEntry = {
+        id: conversation.id,
+        contactId: contact.id,
+        contactName: contactName(contact),
+        phone: contact.phone,
+        email: contact.email,
+        tags: contact.tags,
+        unreadCount: 0,
+        lastMessageBody: '',
+        lastMessageDate: null,
+      };
+      const idx = convosCache.findIndex((c) => c.id === convoEntry.id);
+      if (idx !== -1) convosCache[idx] = { ...convosCache[idx], ...convoEntry };
+      else convosCache.unshift(convoEntry);
+      renderConvoList();
+      await selectConversation(conversation.id);
+      toast('Conversation started.');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
 
   document.getElementById('convoSendBtn').addEventListener('click', sendConvoReply);
   document.getElementById('convoReplyInput').addEventListener('keydown', (e) => {

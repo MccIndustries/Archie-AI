@@ -16,6 +16,48 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// "+ Start Conversation" -- reuses the same find-or-create-contact pattern
+// as intake, then finds-or-creates that contact's one conversation. Doesn't
+// send a message itself; the user types and sends from the thread pane
+// right after, same as any existing conversation.
+router.post('/', async (req, res, next) => {
+  const { name, phone, email } = req.body || {};
+  const userEmail = req.user.email;
+  if (!phone) return res.status(400).json({ error: 'phone is required' });
+
+  const [firstName, ...rest] = (name || '').trim().split(/\s+/).filter(Boolean);
+  const lastName = rest.join(' ');
+
+  try {
+    const { contact, reused: contactReused } = await ghl.findOrCreateContact({
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      email: email || undefined,
+      phone,
+    });
+    const { conversation, reused: convoReused } = await ghl.findOrCreateConversation({ contactId: contact.id });
+    await logSync({
+      userEmail,
+      action: 'conversation.start',
+      entityType: 'contact',
+      entityId: contact.id,
+      request: { name, phone, email },
+      success: true,
+    });
+    res.status(201).json({ contact, contactReused, conversation, convoReused });
+  } catch (err) {
+    await logSync({
+      userEmail,
+      action: 'conversation.start',
+      entityType: 'contact',
+      request: { name, phone, email },
+      success: false,
+      error: err.message,
+    });
+    next(err);
+  }
+});
+
 router.get('/numbers', async (req, res, next) => {
   try {
     const phoneNumbers = await ghl.listPhoneNumbers();

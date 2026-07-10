@@ -122,6 +122,30 @@ router.post('/:id/tags', async (req, res, next) => {
   }
 });
 
+router.delete('/:id', async (req, res, next) => {
+  try {
+    await ghl.deleteContact(req.params.id);
+    await logSync({
+      userEmail: req.user.email,
+      action: 'contact.delete',
+      entityType: 'contact',
+      entityId: req.params.id,
+      success: true,
+    });
+    res.status(204).end();
+  } catch (err) {
+    await logSync({
+      userEmail: req.user.email,
+      action: 'contact.delete',
+      entityType: 'contact',
+      entityId: req.params.id,
+      success: false,
+      error: err.message,
+    });
+    next(err);
+  }
+});
+
 router.delete('/:id/tags', async (req, res, next) => {
   const { tags } = req.body || {};
   try {
