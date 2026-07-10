@@ -33,18 +33,23 @@ function isConnected(c) {
 // Creates a Supabase Auth user for this email and sends Supabase's built-in
 // invite email, which lands on our own set-password.html (customized in the
 // Supabase dashboard's Email Templates). inviteUserByEmail doesn't accept
-// app_metadata directly -- confirmed live -- so the client_id tag is applied
-// in a second call right after.
-async function inviteUserForClient({ email, clientId }) {
+// app_metadata directly -- confirmed live -- so the tag is applied in a
+// second call right after. Shared by both client-login invites (tagged
+// client_id) and admin invites (tagged role: 'admin').
+async function inviteUser({ email, appMetadata }) {
   const { data, error } = await getSupabase().auth.admin.inviteUserByEmail(email, {
     redirectTo: `${process.env.APP_BASE_URL}/set-password.html`,
   });
   if (error) throw error;
   const { error: tagErr } = await getSupabase().auth.admin.updateUserById(data.user.id, {
-    app_metadata: { client_id: clientId },
+    app_metadata: appMetadata,
   });
   if (tagErr) throw tagErr;
   return data.user;
+}
+
+function inviteUserForClient({ email, clientId }) {
+  return inviteUser({ email, appMetadata: { client_id: clientId } });
 }
 
 router.get('/clients', async (req, res, next) => {
@@ -162,6 +167,37 @@ router.post('/clients/:id/users', async (req, res, next) => {
   try {
     const user = await inviteUserForClient({ email, clientId: req.params.id });
     res.status(201).json({ user: { id: user.id, email: user.email } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------- Admin users (agency staff, not client logins) ----------
+
+router.get('/admins', async (req, res, next) => {
+  try {
+    const { data: list, error } = await getSupabase().auth.admin.listUsers();
+    if (error) throw error;
+
+    const admins = list.users
+      .filter((u) => u.app_metadata?.role === 'admin')
+      .map((u) => ({ id: u.id, email: u.email, createdAt: u.created_at }));
+    res.json({ admins });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// "+ Invite Admin" -- same invite-email + self-set-password flow as client
+// logins, just tagged role: 'admin' instead of client_id. Any existing
+// admin can invite another; there's no separate approval step.
+router.post('/admins', async (req, res, next) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'email is required' });
+
+  try {
+    const user = await inviteUser({ email, appMetadata: { role: 'admin' } });
+    res.status(201).json({ admin: { id: user.id, email: user.email } });
   } catch (err) {
     next(err);
   }

@@ -86,7 +86,32 @@
       <tbody id="clientsBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
     </table>
   </div>
+
+  <h1 class="page-title" style="margin-top:34px">Admin Users</h1>
+  <div class="toolbar">
+    <span class="muted">Agency staff with access to this Admin portal.</span>
+    <button class="gbtn" id="addAdminBtn">+ Invite Admin</button>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Email</th><th>Created</th></tr></thead>
+      <tbody id="adminsBody"><tr><td colspan="2" class="loading">Loading…</td></tr></tbody>
+    </table>
+  </div>
 </main>
+
+<!-- Invite Admin modal -->
+<div class="overlay" id="addAdminModal">
+  <div class="modal">
+    <h3>Invite Admin</h3>
+    <p class="muted" style="font-size:13px">They'll get an email to set their own password and log in to this Admin portal.</p>
+    <label>Email</label><input id="aaEmail" type="email" placeholder="teammate@agency.com" />
+    <div class="actions">
+      <button class="btn-secondary" data-close="addAdminModal">Cancel</button>
+      <button class="btn-primary" id="aaSave">Send Invite</button>
+    </div>
+  </div>
+</div>
 
 <!-- Create New Account modal -->
 <div class="overlay" id="addClientModal">

@@ -1,8 +1,8 @@
 {
-  "name": "flowsuite-portal",
+  "name": "archie-ai-portal",
   "version": "0.1.0",
   "private": true,
-  "description": "FlowSuite job-first portal over a GoHighLevel sub-account",
+  "description": "Archie AI job-first portal over a GoHighLevel sub-account",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",

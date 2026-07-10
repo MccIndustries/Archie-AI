@@ -250,7 +250,48 @@
     });
 
     loadClients();
+    loadAdmins();
   }
+
+  // ---------- Admin users ----------
+  async function loadAdmins() {
+    const body = document.getElementById('adminsBody');
+    body.innerHTML = '<tr><td colspan="2" class="loading">Loading…</td></tr>';
+    try {
+      const { admins } = await api('/admins');
+      body.innerHTML = admins.length
+        ? admins
+            .map(
+              (a) => `
+        <tr>
+          <td>${a.email}</td>
+          <td class="muted">${new Date(a.createdAt).toLocaleDateString()}</td>
+        </tr>`
+            )
+            .join('')
+        : '<tr><td colspan="2" class="muted">No admins yet.</td></tr>';
+    } catch (err) {
+      body.innerHTML = `<tr><td colspan="2">${err.message}</td></tr>`;
+    }
+  }
+
+  document.getElementById('addAdminBtn').addEventListener('click', () => {
+    document.getElementById('aaEmail').value = '';
+    openModal('addAdminModal');
+  });
+
+  document.getElementById('aaSave').addEventListener('click', async () => {
+    const email = document.getElementById('aaEmail').value.trim();
+    if (!email) return toast('Enter an email.', true);
+    try {
+      await api('/admins', { method: 'POST', body: JSON.stringify({ email }) });
+      closeModal('addAdminModal');
+      toast('Invite sent.');
+      loadAdmins();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
 
   boot();
 })();
