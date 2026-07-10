@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Archie AI — Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#f3f5f8; --card:#ffffff; --ink:#0f1b2d; --ink-soft:#5b6b80; --ink-faint:#8a99ad;
+    --line:#e7ecf2; --cyan:#27b6f6; --cyan-deep:#1597dd; --cyan-soft:#e8f6fe;
+    --cyan-grad:linear-gradient(135deg,#37c0fb 0%,#1b9fe6 100%);
+    --magenta:#d6447a; --green:#16a34a; --green-soft:#e7f8ee;
+    --amber:#f59e0b; --red:#ef4444; --red-soft:#fdeaea; --purple:#7c5cff;
+    --shadow:0 1px 2px rgba(16,27,45,.04),0 8px 24px rgba(16,27,45,.05);
+    --r:18px; --r-sm:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  a{text-decoration:none;color:inherit}
+  button{font-family:inherit}
+  .wrap{max-width:1320px;margin:0 auto;padding:0 28px}
+
+  header{position:sticky;top:0;z-index:50;background:rgba(243,245,248,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;gap:24px;height:74px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:21px;letter-spacing:-.5px}
+  .brand .mark{width:30px;height:30px;border-radius:9px;background:var(--cyan-grad)}
+  .nav-mid{flex:1;display:flex;justify-content:center}
+  .pills{display:flex;align-items:center;gap:4px;background:#fff;padding:6px;border-radius:40px;box-shadow:var(--shadow)}
+  .pill{padding:9px 16px;border-radius:30px;font-size:14.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;border:none;background:none}
+  .pill.active{color:var(--ink);background:#f1f5fa;box-shadow:inset 0 0 0 1px var(--line)}
+  .pill.soon{opacity:.45;cursor:default}
+  .nav-right{display:flex;align-items:center;gap:14px}
+  .avatar{width:40px;height:40px;border-radius:50%;background:var(--cyan-soft);color:var(--cyan-deep);display:grid;place-items:center;font-weight:700;font-size:14px;box-shadow:inset 0 0 0 2px #fff,0 0 0 2px var(--cyan)}
+  .signout{font-size:13px;font-weight:700;color:var(--ink-soft);cursor:pointer;background:none;border:none}
+  .signout:hover{color:var(--red)}
+
+  main{padding:26px 0 60px}
+  .section{display:none}
+  .section.active{display:block}
+
+  h1.page-title{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:18px}
+
+  .rangebar{display:flex;align-items:center;gap:6px;background:#fff;padding:5px;border-radius:12px;box-shadow:var(--shadow);flex-wrap:wrap}
+  .rbtn{padding:8px 14px;border-radius:9px;border:none;background:none;font-size:13px;font-weight:700;color:var(--ink-soft);cursor:pointer}
+  .rbtn.active{background:var(--cyan-soft);color:var(--cyan-deep)}
+  .rangebar input[type=date]{padding:7px 9px;border-radius:8px;border:1px solid var(--line);font-size:13px;font-family:inherit}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);position:relative}
+  .kpi .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:18px;margin-bottom:12px;font-weight:800}
+  .kpi .ic.cyan{background:var(--cyan-soft);color:var(--cyan-deep)}
+  .kpi .ic.purple{background:#f0ecff;color:var(--purple)}
+  .kpi .ic.amber{background:#fef4e2;color:var(--amber)}
+  .kpi .ic.green{background:var(--green-soft);color:var(--green)}
+  .kpi .val{font-size:28px;font-weight:800;letter-spacing:-1px}
+  .kpi .lab{color:var(--ink-soft);font-size:13.5px;font-weight:600;margin-top:4px}
+  .kpi-inline-select{margin-top:8px;width:100%;padding:6px 8px;border-radius:8px;border:1px solid var(--line);font-size:12px;font-family:inherit;background:#fafcff}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:22px;margin-top:22px}
+  .card h3{font-size:17px;font-weight:800;letter-spacing:-.3px;margin-bottom:14px}
+  .sec-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+  .csub{color:var(--ink-faint);font-size:13px;font-weight:500}
+  .link{color:var(--cyan-deep);font-size:13px;font-weight:700;cursor:pointer}
+
+  .stagebar{display:flex;gap:10px;flex-wrap:wrap}
+  .stagechip{background:var(--cyan-soft);color:var(--cyan-deep);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700;min-width:110px}
+  .stagechip .n{font-size:20px;font-weight:800;display:block}
+
+  .dash-2col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}
+  .dash-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer}
+  .dash-row:last-child{border-bottom:none}
+  .dash-row:hover{background:#fafcff}
+  .dash-row .name{font-weight:700}
+  .dash-row .sub{color:var(--ink-faint);font-size:12px}
+  .dash-pipeline-block{margin-bottom:16px}
+  .dash-pipeline-block:last-child{margin-bottom:0}
+  .dash-pipeline-block .ph{font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:8px}
+
+  @media(max-width:900px){ .dash-2col{grid-template-columns:1fr} }
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+  .search{flex:1;max-width:340px;padding:10px 14px;border-radius:12px;border:1px solid var(--line);font-size:14px}
+  .gbtn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:30px;color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer;background:var(--cyan-grad)}
+
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:12px;color:var(--ink-faint);font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:0 12px 10px;border-bottom:1px solid var(--line)}
+  td{padding:13px 12px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle}
+  tr.rowlink{cursor:pointer}
+  tr.rowlink:hover{background:#fafcff}
+  .chip{display:inline-block;background:var(--cyan-soft);color:var(--cyan-deep);font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;margin:2px 4px 2px 0}
+  .muted{color:var(--ink-faint)}
+
+  .board{display:grid;gap:14px;grid-auto-flow:column;grid-auto-columns:260px;overflow-x:auto;padding-bottom:6px}
+  .col{background:#fafcff;border:1px solid var(--line);border-radius:14px;padding:12px;transition:background .15s,box-shadow .15s}
+  .col.drag-over{background:var(--cyan-soft);box-shadow:inset 0 0 0 2px var(--cyan)}
+  .col h4{font-size:13.5px;font-weight:800;margin-bottom:10px;display:flex;justify-content:space-between}
+  .col h4 .n{color:var(--ink-faint);font-weight:700}
+  .jobcard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow);cursor:grab}
+  .jobcard.dragging{opacity:.4}
+  .jobcard .jn{font-weight:700;font-size:13.5px}
+  .jobcard .jc{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .jobcard .jd{font-size:11.5px;color:var(--ink-faint);margin-top:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .jobcard .case{font-weight:700;font-size:11px;color:var(--ink-faint);margin-top:6px}
+
+  .photogrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .photogrid img{width:74px;height:74px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+  .filegroup{margin-top:10px}
+  .filegroup-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-faint);margin-bottom:6px}
+  .filerow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .fieldlist{margin-top:8px}
+  .fieldrow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .fieldrow:last-child{border-bottom:none}
+  .fieldrow .fname{color:var(--ink-faint);font-weight:600;flex-shrink:0}
+  .fieldrow .fval{text-align:right;word-break:break-word}
+  .filerow:last-child{border-bottom:none}
+  .filerow a{font-weight:600}
+
+  .stagerow{display:flex;gap:8px;margin-top:8px}
+  .stagerow input{flex:1}
+  .stagerow button{background:none;border:none;color:var(--red);font-weight:700;cursor:pointer;font-size:13px}
+
+  .appt-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+  .appt-row:last-child{border-bottom:none}
+  .appt-row:hover{background:#fafcff}
+  .appt-row .t{font-weight:700}
+
+  .convo-layout{display:grid;grid-template-columns:300px 1fr;gap:18px;height:calc(100vh - 200px);min-height:420px}
+  .convo-list-pane{overflow-y:auto;padding:10px}
+  .convo-thread-pane{display:flex;flex-direction:column;padding:22px}
+  .convo-header{padding-bottom:14px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+  .convo-header .name{font-size:16px;font-weight:800}
+  .convo-header .meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px;font-size:12.5px;color:var(--ink-soft)}
+  .convo-header .tags{margin-top:6px}
+  .convo-item{padding:12px;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+  .convo-item:hover{background:#fafcff}
+  .convo-item.active{background:var(--cyan-soft)}
+  .convo-item .cn{font-weight:700;font-size:13.5px;display:flex;justify-content:space-between}
+  .convo-item .cs{font-size:12px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .convo-item .ct{font-size:11px;color:var(--ink-faint)}
+  .badge{background:var(--magenta);color:#fff;font-size:10px;font-weight:700;border-radius:20px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 4px;display:inline-block}
+  .convo-thread{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px 4px}
+  .msg-bubble{max-width:70%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.4}
+  .msg-bubble.outbound{align-self:flex-end;background:var(--cyan-grad);color:#fff;border-bottom-right-radius:4px}
+  .msg-bubble.inbound{align-self:flex-start;background:#f1f5fa;color:var(--ink);border-bottom-left-radius:4px}
+  .msg-bubble .mt{font-size:10px;opacity:.75;margin-top:4px}
+  .msg-bubble.failed{background:var(--red-soft);color:var(--red)}
+  .convo-reply{display:flex;gap:10px;margin-top:14px}
+  .convo-reply input{flex:1;padding:11px 14px;border-radius:12px;border:1px solid var(--line);font-size:14px;font-family:inherit}
+  .convo-reply select{padding:11px 12px;border-radius:12px;border:1px solid var(--line);font-size:13px;font-family:inherit}
+
+  .overlay{position:fixed;inset:0;background:rgba(15,27,45,.4);display:none;align-items:center;justify-content:center;z-index:100}
+  .overlay.open{display:flex}
+  .modal{background:#fff;border-radius:18px;padding:26px;width:100%;max-width:420px;max-height:86vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+  .modal h3{font-size:18px;font-weight:800;margin-bottom:16px}
+  .modal label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:12px 0 5px}
+  .modal input,.modal select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);font-size:14px;font-family:inherit}
+  .modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .modal .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+  .btn-secondary{padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:13.5px;cursor:pointer}
+  .btn-primary{padding:10px 18px;border-radius:12px;border:none;background:var(--cyan-grad);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer}
+  .tagedit{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .tagedit .chip{cursor:pointer}
+  .tagedit .chip::after{content:" ×";font-weight:800}
+
+  .filterpanel{display:none;position:absolute;top:calc(100% + 8px);right:0;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px rgba(16,27,45,.14);padding:18px;width:300px;z-index:60}
+  .filterpanel.open{display:block}
+  .fp-row{margin-bottom:14px}
+  .fp-row label{display:block;font-size:12px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+  .fp-tags{display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow-y:auto}
+  .fp-tag-opt{display:inline-flex;align-items:center;gap:5px;background:#f3f5f8;border:1px solid var(--line);color:var(--ink-soft);font-size:12px;font-weight:600;padding:5px 10px;border-radius:20px;cursor:pointer;user-select:none}
+  .fp-tag-opt.sel{background:var(--cyan-soft);border-color:var(--cyan-deep);color:var(--cyan-deep)}
+  .fp-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .fp-preset{padding:5px 10px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink-soft)}
+  .fp-preset.sel{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .fp-daterange{display:flex;align-items:center;gap:6px}
+  .fp-daterange input[type=date]{flex:1;padding:7px 8px;border-radius:8px;border:1px solid var(--line);font-size:12.5px;font-family:inherit}
+  .fp-actions{display:flex;justify-content:flex-end;gap:8px}
+  .chiprow{display:flex;flex-wrap:wrap;gap:8px;margin:-6px 0 14px}
+  .chiprow:empty{margin:0}
+  .fchip{display:inline-flex;align-items:center;gap:6px;background:var(--ink);color:#fff;font-size:12px;font-weight:600;padding:5px 6px 5px 12px;border-radius:20px}
+  .fchip button{background:none;border:none;color:#fff;opacity:.7;cursor:pointer;font-size:14px;line-height:1;padding:2px 6px}
+  .fchip button:hover{opacity:1}
+
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:13.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.3);z-index:200;display:none}
+  .toast.err{background:var(--red)}
+
+  .loading{color:var(--ink-faint);font-size:13.5px;padding:20px 0;text-align:center}
+
+  .notconnected-banner{background:var(--red-soft);color:var(--red);text-align:center;font-weight:700;font-size:13.5px;padding:10px 16px}
+  .gate-disabled{opacity:.5;pointer-events:none;cursor:not-allowed}
+
+  @media(max-width:900px){ .kpis{grid-template-columns:repeat(2,1fr)} .nav-mid{display:none} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand"><span class="mark"></span><span id="brandName">Archie AI</span></div>
+    <div class="nav-mid">
+      <nav class="pills" id="tabs">
+        <button class="pill active" data-tab="dashboard">Dashboard</button>
+        <button class="pill" data-tab="contacts">Contacts</button>
+        <button class="pill" data-tab="jobs">Jobs</button>
+        <button class="pill" data-tab="calendar">Calendar</button>
+        <button class="pill" data-tab="reporting">Reporting</button>
+        <button class="pill" data-tab="conversations">Conversations</button>
+      </nav>
+    </div>
+    <div class="nav-right">
+      <span id="userEmail" class="muted" style="font-size:13px;font-weight:600"></span>
+      <div class="avatar" id="avatar">–</div>
+      <button class="signout" id="signOut">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<div class="notconnected-banner" id="notConnectedBanner" style="display:none">
+  Your account is not connected. Please contact your agency.
+</div>
+
+<main class="wrap">
+
+  <!-- DASHBOARD -->
+  <section class="section active" id="tab-dashboard">
+    <div class="toolbar">
+      <h1 class="page-title" style="margin-bottom:0">Shop Performance Overview</h1>
+      <div class="rangebar" id="rangebar">
+        <button class="rbtn active" data-range="">All time</button>
+        <button class="rbtn" data-range="7">7 days</button>
+        <button class="rbtn" data-range="14">14 days</button>
+        <button class="rbtn" data-range="30">30 days</button>
+        <button class="rbtn" data-range="custom">Custom</button>
+        <input type="date" id="rangeFrom" style="display:none" />
+        <span id="rangeSep" style="display:none;color:var(--ink-faint)">to</span>
+        <input type="date" id="rangeTo" style="display:none" />
+      </div>
+    </div>
+    <div class="kpis" id="kpis">
+      <div class="kpi">
+        <div class="ic green">$</div>
+        <div class="val">–</div><div class="lab">Total Revenue</div>
+      </div>
+      <div class="kpi">
+        <div class="ic cyan">◐</div>
+        <div class="val">–</div><div class="lab">New Leads Today</div>
+      </div>
+      <div class="kpi">
+        <div class="ic amber">◒</div>
+        <div class="val">–</div><div class="lab">Pipeline Value</div>
+      </div>
+      <div class="kpi">
+        <div class="ic purple">◔</div>
+        <div class="val">–</div>
+        <div class="lab">Appointments Booked</div>
+        <select id="apptCalendarSelect" class="kpi-inline-select"><option value="">All calendars</option></select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-head">
+        <h3 style="color:var(--red);margin-bottom:2px">⚠ Jobs Needing Attention</h3>
+        <select id="attentionPipelineSelect" style="max-width:220px"><option value="">All pipelines</option></select>
+      </div>
+      <p class="csub" style="margin-bottom:14px">Open jobs stuck in the same stage for 10+ days</p>
+      <table>
+        <thead><tr><th>Case #</th><th>Customer</th><th>Job Value</th><th>Stage</th></tr></thead>
+        <tbody id="attentionBody"><tr><td colspan="4" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="dash-2col">
+      <div class="card" style="margin-top:0">
+        <div class="sec-head">
+          <h3>💬 Unread Conversations</h3>
+          <span class="link" data-tab-link="conversations">View all</span>
+        </div>
+        <div id="dashUnreadConvos"><div class="loading">Loading…</div></div>
+      </div>
+      <div class="card" style="margin-top:0">
+        <div class="sec-head">
+          <h3>📅 Upcoming Appointments</h3>
+          <span class="link" data-tab-link="calendar">View all</span>
+        </div>
+        <div id="dashUpcomingAppts"><div class="loading">Loading…</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-head">
+        <h3>Jobs Overview</h3>
+        <span class="link" data-tab-link="jobs">Open Jobs board</span>
+      </div>
+      <div id="dashPipelineOverviews"><div class="loading">Loading…</div></div>
+    </div>
+  </section>
+
+  <!-- CONTACTS -->
+  <section class="section" id="tab-contacts">
+    <h1 class="page-title">Contacts</h1>
+    <div class="toolbar">
+      <input class="search" id="contactSearch" placeholder="Search contacts…" />
+      <div style="display:flex;gap:10px;position:relative">
+        <button class="btn-secondary" id="contactFilterBtn">Filters <span id="contactFilterCount"></span></button>
+        <button class="gbtn" id="addContactBtn">+ Add Contact</button>
+        <div class="filterpanel" id="contactFilterPanel">
+          <div class="fp-row">
+            <label>Tags</label>
+            <div id="contactTagOptions" class="fp-tags"><span class="muted" style="font-size:12.5px">Loading…</span></div>
+          </div>
+          <div class="fp-row">
+            <label>Created</label>
+            <div class="fp-presets" id="contactDatePresets">
+              <button type="button" class="fp-preset" data-preset="">Any time</button>
+              <button type="button" class="fp-preset" data-preset="today">Today</button>
+              <button type="button" class="fp-preset" data-preset="week">This week</button>
+              <button type="button" class="fp-preset" data-preset="month">This month</button>
+            </div>
+            <div class="fp-daterange">
+              <input type="date" id="contactDateFrom" />
+              <span class="muted">to</span>
+              <input type="date" id="contactDateTo" />
+            </div>
+          </div>
+          <div class="fp-actions">
+            <button class="btn-secondary" id="contactFilterClear">Clear</button>
+            <button class="btn-primary" id="contactFilterApply">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="chiprow" id="contactFilterChips"></div>
+    <div class="card" style="margin-top:0">
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th></tr></thead>
+        <tbody id="contactsBody"><tr><td colspan="4" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- JOBS -->
+  <section class="section" id="tab-jobs">
+    <h1 class="page-title">Jobs</h1>
+    <div class="toolbar">
+      <select id="pipelineSelect" style="max-width:260px"></select>
+      <div style="display:flex;gap:10px">
+        <button class="btn-secondary" id="newPipelineBtn">+ New Pipeline</button>
+        <a class="gbtn" id="newJobLink" href="/intake.html">+ New Job</a>
+      </div>
+    </div>
+    <div class="board" id="board"><div class="loading">Loading…</div></div>
+  </section>
+
+  <!-- CALENDAR -->
+  <section class="section" id="tab-calendar">
+    <h1 class="page-title">Calendar</h1>
+    <div class="toolbar">
+      <select id="calendarSelect" style="max-width:260px"></select>
+      <input type="date" id="calendarDate" />
+    </div>
+    <div class="card" style="margin-top:0">
+      <h3>Booked appointments</h3>
+      <div id="appointmentsList"><div class="loading">Loading…</div></div>
+    </div>
+  </section>
+
+  <!-- REPORTING -->
+  <section class="section" id="tab-reporting">
+    <h1 class="page-title">Reporting</h1>
+
+    <div class="card" style="margin-top:0">
+      <h3>Revenue Snapshot</h3>
+      <div class="kpis" id="revenueKpis">
+        <div class="kpi"><div class="val">–</div><div class="lab">Total Revenue</div></div>
+        <div class="kpi"><div class="val">–</div><div class="lab">Pipeline Value</div></div>
+        <div class="kpi"><div class="val">–</div><div class="lab">Won / Open / Lost</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-head">
+        <h3>Contacts</h3>
+        <button class="btn-secondary" id="exportContactsBtn">Export CSV</button>
+      </div>
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th><th>Date Added</th></tr></thead>
+        <tbody id="repContactsBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="sec-head">
+        <h3>Pipeline</h3>
+        <div style="display:flex;gap:10px;align-items:center">
+          <select id="repPipelineSelect" style="max-width:220px"></select>
+          <button class="btn-secondary" id="exportPipelineBtn">Export CSV</button>
+        </div>
+      </div>
+      <div class="stagebar" id="repStageBar" style="margin-bottom:14px"></div>
+      <table>
+        <thead><tr><th>Case #</th><th>Customer</th><th>Vehicle</th><th>Value</th><th>Stage</th></tr></thead>
+        <tbody id="repPipelineBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="sec-head">
+        <h3>Sales by Month</h3>
+        <button class="btn-secondary" id="exportSalesBtn">Export CSV</button>
+      </div>
+      <table>
+        <thead><tr><th>Month</th><th>Revenue</th><th>Jobs Won</th></tr></thead>
+        <tbody id="repSalesBody"><tr><td colspan="3" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CONVERSATIONS -->
+  <section class="section" id="tab-conversations">
+    <h1 class="page-title">Conversations</h1>
+    <div class="convo-layout">
+      <div class="card convo-list-pane" style="margin-top:0">
+        <div id="convoList"><div class="loading">Loading…</div></div>
+      </div>
+      <div class="card convo-thread-pane" style="margin-top:0">
+        <div id="convoThreadHeader" class="convo-header muted">Select a conversation.</div>
+        <div id="convoThread" class="convo-thread"></div>
+        <div class="convo-reply" id="convoReplyBox" style="display:none">
+          <select id="convoFromNumber" style="max-width:170px"></select>
+          <input id="convoReplyInput" placeholder="Type a message…" />
+          <button class="btn-primary" id="convoSendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Add Contact modal -->
+<div class="overlay" id="contactModal">
+  <div class="modal">
+    <h3>Add Contact</h3>
+    <label>First name</label><input id="cFirst" />
+    <label>Last name</label><input id="cLast" />
+    <label>Email</label><input id="cEmail" type="email" />
+    <label>Phone</label><input id="cPhone" type="tel" />
+    <label>Tags (comma separated)</label><input id="cTags" placeholder="vip, repeat-customer" />
+    <div class="actions">
+      <button class="btn-secondary" data-close="contactModal">Cancel</button>
+      <button class="btn-primary" id="cSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Contact detail modal -->
+<div class="overlay" id="detailModal">
+  <div class="modal">
+    <h3 id="dName">Contact</h3>
+    <label>First name</label><input id="dFirst" />
+    <label>Last name</label><input id="dLast" />
+    <label>Email</label><input id="dEmail" type="email" />
+    <label>Phone</label><input id="dPhone" type="tel" />
+    <label>Tags</label>
+    <div class="tagedit" id="dTags"></div>
+    <input id="dNewTag" placeholder="Add a tag and press Enter" style="margin-top:8px" />
+    <div class="actions">
+      <button class="btn-secondary" data-close="detailModal">Close</button>
+      <button class="btn-primary" id="dSave">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Job Detail modal -->
+<div class="overlay" id="jobDetailModal">
+  <div class="modal" style="max-width:480px">
+    <h3 id="jdCase">Case #</h3>
+    <div class="muted" id="jdContact" style="margin-bottom:10px"></div>
+    <label>Vehicle</label>
+    <div id="jdVehicle" style="font-size:14px;font-weight:600"></div>
+    <label>Damage description</label>
+    <div id="jdDamage" style="font-size:14px;white-space:pre-wrap"></div>
+    <label>Status</label>
+    <select id="jdStatus">
+      <option value="open">Open</option>
+      <option value="won">Won</option>
+      <option value="lost">Lost</option>
+      <option value="abandoned">Abandoned</option>
+    </select>
+
+    <div id="jdCustomFieldsSection" style="margin-top:16px;display:none">
+      <label>Opportunity Fields</label>
+      <div id="jdCustomFields" class="fieldlist"></div>
+    </div>
+
+    <div class="sec-head" style="margin-top:16px">
+      <label style="margin:0">Files</label>
+      <button type="button" class="btn-secondary" id="jdUploadBtn" style="padding:6px 12px;font-size:12.5px">+ Upload Files</button>
+    </div>
+    <div id="jdFiles"></div>
+
+    <div id="jdUploadForm" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px">
+      <label>Category</label>
+      <select id="jdCategory">
+        <option>Insurance Documents</option>
+        <option>Photos</option>
+        <option>Paperwork</option>
+        <option value="__custom">Custom…</option>
+      </select>
+      <input id="jdCustomCategory" placeholder="Enter a category name" style="display:none;margin-top:8px" />
+      <label>File(s)</label>
+      <input id="jdFileInput" type="file" multiple />
+      <div class="actions">
+        <button type="button" class="btn-secondary" id="jdUploadCancel">Cancel</button>
+        <button type="button" class="btn-primary" id="jdUploadSave">Upload</button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-secondary" data-close="jobDetailModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Pipeline modal -->
+<div class="overlay" id="pipelineModal">
+  <div class="modal">
+    <h3>New Pipeline</h3>
+    <label>Pipeline name</label><input id="pName" placeholder="Repair Pipeline" />
+    <label>Stages</label>
+    <div id="pStages"></div>
+    <button type="button" class="btn-secondary" id="pAddStage" style="margin-top:8px">+ Add stage</button>
+    <div class="actions">
+      <button class="btn-secondary" data-close="pipelineModal">Cancel</button>
+      <button class="btn-primary" id="pSave">Create pipeline</button>
+    </div>
+  </div>
+</div>
+
+<!-- Appointment Detail modal -->
+<div class="overlay" id="appointmentDetailModal">
+  <div class="modal" style="max-width:420px">
+    <h3 id="adTitle">Appointment</h3>
+    <label>Calendar</label>
+    <div id="adCalendar" style="font-size:14px;font-weight:600"></div>
+    <label>Time</label>
+    <div id="adTime" style="font-size:14px"></div>
+    <label>Location</label>
+    <div id="adLocation" style="font-size:14px"></div>
+    <label>Status</label>
+    <div id="adStatus" style="font-size:14px;text-transform:capitalize"></div>
+    <label>Contact</label>
+    <div id="adContact"></div>
+    <div class="actions">
+      <button class="btn-secondary" data-close="appointmentDetailModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

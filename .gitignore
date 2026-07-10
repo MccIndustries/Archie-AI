@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+
+# Claude Code local tool state -- not project source.
+.claude/
+
+# Early static mockups/reference assets, predating the real app -- not
+# served by server/index.js or referenced from public/.
+flowsuite-dashboard.html
+dashboard.jpeg
+diagram.jpg

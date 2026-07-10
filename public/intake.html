@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Archie AI — New Job Intake</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#f3f5f8; --card:#ffffff; --ink:#0f1b2d; --ink-soft:#5b6b80; --ink-faint:#8a99ad;
+    --line:#e7ecf2; --cyan-deep:#1597dd; --cyan-soft:#e8f6fe;
+    --cyan-grad:linear-gradient(135deg,#37c0fb 0%,#1b9fe6 100%);
+    --green:#16a34a; --green-soft:#e7f8ee; --red:#ef4444; --red-soft:#fdeaea;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  a{text-decoration:none;color:var(--cyan-deep);font-weight:700}
+  .wrap{max-width:760px;margin:0 auto;padding:32px 24px 80px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:21px;margin-bottom:8px}
+  .brand .mark{width:30px;height:30px;border-radius:9px;background:var(--cyan-grad)}
+  h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:18px 0 4px}
+  .sub{color:var(--ink-soft);font-size:14.5px;margin-bottom:26px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 1px 2px rgba(16,27,45,.04),0 8px 24px rgba(16,27,45,.05);padding:26px}
+  fieldset{border:none;margin-bottom:22px;padding:0}
+  legend{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--cyan-deep);margin-bottom:12px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:12px 0 5px}
+  input,select,textarea{width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--line);font-family:inherit;font-size:14px;background:#fff}
+  textarea{resize:vertical;min-height:80px}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--cyan-deep);outline-offset:1px}
+  input[type="file"]{padding:9px}
+  .hint{font-size:12px;color:var(--ink-faint);margin-top:4px}
+  .actions{display:flex;justify-content:flex-end;gap:12px;margin-top:8px}
+  button{font-family:inherit}
+  .btn-secondary{padding:11px 18px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:14px;cursor:pointer}
+  .btn-primary{padding:11px 22px;border-radius:12px;border:none;background:var(--cyan-grad);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+  .btn-primary:disabled{opacity:.6;cursor:default}
+  .msg{margin-top:16px;border-radius:12px;padding:14px 16px;font-size:13.5px;font-weight:600;display:none}
+  .msg.err{background:var(--red-soft);color:var(--red);display:block}
+  .msg.ok{background:var(--green-soft);color:var(--green);display:block}
+  .msg .warn{display:block;font-weight:500;margin-top:4px}
+  .slotgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .slotbtn{padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .slotbtn:hover{border-color:var(--cyan-deep)}
+  .slotbtn.selected{background:var(--cyan-grad);border-color:transparent;color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="mark"></span><span id="brandName">Archie AI</span></div>
+  <h1>New Job Intake</h1>
+  <p class="sub">One screen: creates the customer, conversation, job, and appointment together.</p>
+
+  <div class="card">
+    <form id="intakeForm">
+      <fieldset>
+        <legend>Customer</legend>
+        <div class="row2">
+          <div><label>First name</label><input id="firstName" required /></div>
+          <div><label>Last name</label><input id="lastName" required /></div>
+        </div>
+        <div class="row2">
+          <div><label>Email</label><input id="email" type="email" /></div>
+          <div><label>Phone</label><input id="phone" type="tel" /></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Vehicle &amp; Damage</legend>
+        <div class="row2">
+          <div><label>Car make</label><input id="carMake" placeholder="Honda" /></div>
+          <div><label>Car model</label><input id="carModel" placeholder="Civic" /></div>
+        </div>
+        <label>Damage description</label>
+        <textarea id="damageDescription" placeholder="Rear bumper dent, cracked tail light…"></textarea>
+        <label>Photos</label>
+        <input id="photos" type="file" accept="image/*" multiple />
+        <div class="hint">Insurance docs / damage photos — stored securely, retrievable from the job.</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Job routing</legend>
+        <label>Pipeline</label>
+        <select id="pipelineId" required></select>
+        <div class="hint">New job starts in this pipeline's first stage.</div>
+        <label>Job value ($)</label>
+        <input id="jobValue" type="number" min="0" step="1" placeholder="Estimated repair cost" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Appointment (optional)</legend>
+        <div class="row2">
+          <div><label>Date</label><input id="apptDate" type="date" /></div>
+          <div><label>Timezone</label><select id="apptTimezone"></select></div>
+        </div>
+        <label>Available times</label>
+        <div class="slotgrid" id="slotGrid"><span class="hint">Pick a date to see open times, or leave blank to skip booking one now.</span></div>
+        <input type="hidden" id="startTime" />
+        <div class="hint">Times shown in the selected timezone. If a time is picked, it's booked on the shop's calendar as part of this same submission.</div>
+      </fieldset>
+
+      <div id="msg" class="msg"></div>
+
+      <div class="actions">
+        <a href="/index.html" class="btn-secondary" style="display:inline-flex;align-items:center;justify-content:center">Cancel</a>
+        <button type="submit" class="btn-primary" id="submitBtn">Create Job</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(async function () {
+  const cfgRes = await fetch('/api/config');
+  const { supabaseUrl, supabaseAnonKey, brandName } = await cfgRes.json();
+  if (brandName) {
+    document.title = `${brandName} — New Job Intake`;
+    document.getElementById('brandName').textContent = brandName;
+  }
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { window.location.href = '/login.html'; return; }
+  const token = session.access_token;
+
+  const api = async (path) => {
+    const res = await fetch('/api' + path, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`Failed to load ${path}`);
+    return res.json();
+  };
+
+  function fillSelect(sel, items, labelFn) {
+    sel.innerHTML = items.map((it) => `<option value="${it.id}">${labelFn(it)}</option>`).join('');
+  }
+
+  try {
+    const { pipelines } = await api('/pipelines');
+    fillSelect(document.getElementById('pipelineId'), pipelines, (p) => p.name);
+    if (!pipelines.length) {
+      const msg = document.getElementById('msg');
+      msg.className = 'msg err';
+      msg.textContent = 'No pipelines exist yet — create one from the Jobs tab before running intake.';
+    }
+  } catch (err) {
+    const msg = document.getElementById('msg');
+    msg.className = 'msg err';
+    msg.textContent = err.message;
+  }
+
+  const slotGrid = document.getElementById('slotGrid');
+  const startTimeInput = document.getElementById('startTime');
+  const tzSelect = document.getElementById('apptTimezone');
+
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tzList = typeof Intl.supportedValuesOf === 'function'
+    ? Intl.supportedValuesOf('timeZone')
+    : [browserTz, 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'UTC'];
+  tzSelect.innerHTML = tzList.map((tz) => `<option value="${tz}" ${tz === browserTz ? 'selected' : ''}>${tz.replace(/_/g, ' ')}</option>`).join('');
+
+  async function loadSlots() {
+    startTimeInput.value = '';
+    const date = document.getElementById('apptDate').value;
+    const tz = tzSelect.value;
+    if (!date) return;
+    slotGrid.innerHTML = '<span class="hint">Loading available times…</span>';
+    try {
+      const { slots } = await api(`/slots?date=${date}&timezone=${encodeURIComponent(tz)}`);
+      if (!slots.length) {
+        slotGrid.innerHTML = '<span class="hint">No available times on this date.</span>';
+        return;
+      }
+      slotGrid.innerHTML = '';
+      slots.forEach((iso) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slotbtn';
+        btn.textContent = new Date(iso).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.slotbtn').forEach((b) => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          startTimeInput.value = iso;
+        });
+        slotGrid.appendChild(btn);
+      });
+    } catch (err) {
+      slotGrid.innerHTML = `<span class="hint">${err.message}</span>`;
+    }
+  }
+
+  document.getElementById('apptDate').addEventListener('change', loadSlots);
+  tzSelect.addEventListener('change', loadSlots);
+
+  document.getElementById('intakeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('msg');
+    const btn = document.getElementById('submitBtn');
+    msg.className = 'msg';
+    msg.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+
+    const fd = new FormData();
+    fd.append('firstName', document.getElementById('firstName').value.trim());
+    fd.append('lastName', document.getElementById('lastName').value.trim());
+    fd.append('email', document.getElementById('email').value.trim());
+    fd.append('phone', document.getElementById('phone').value.trim());
+    fd.append('carMake', document.getElementById('carMake').value.trim());
+    fd.append('carModel', document.getElementById('carModel').value.trim());
+    fd.append('damageDescription', document.getElementById('damageDescription').value.trim());
+    fd.append('pipelineId', document.getElementById('pipelineId').value);
+    fd.append('value', document.getElementById('jobValue').value || '0');
+    const startTimeValue = document.getElementById('startTime').value;
+    if (startTimeValue) fd.append('startTime', startTimeValue);
+    for (const file of document.getElementById('photos').files) fd.append('photos', file);
+
+    try {
+      const res = await fetch('/api/intake', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Intake failed');
+
+      msg.className = 'msg ok';
+      msg.innerHTML = `Job created — <strong>Case #${body.job.id}</strong>` +
+        (body.contactReused ? ' for an existing customer.' : '.') +
+        (body.warnings?.length ? body.warnings.map((w) => `<span class="warn">⚠ ${w}</span>`).join('') : '');
+      btn.textContent = 'Created ✓';
+      setTimeout(() => { window.location.href = '/index.html'; }, 1800);
+    } catch (err) {
+      msg.className = 'msg err';
+      msg.textContent = err.message;
+      btn.disabled = false;
+      btn.textContent = 'Create Job';
+    }
+  });
+})();
+</script>
+</body>
+</html>
