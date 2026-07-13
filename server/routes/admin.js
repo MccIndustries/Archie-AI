@@ -2,6 +2,7 @@ const express = require('express');
 const ghl = require('../lib/ghlClient');
 const { getSupabase } = require('../lib/supabase');
 const requireAdmin = require('../middleware/requireAdmin');
+const { inviteUser, inviteUserForClient } = require('../lib/invites');
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -28,28 +29,6 @@ function maskToken(token) {
 
 function isConnected(c) {
   return Boolean(c.ghl_location_id && c.ghl_api_token && c.ghl_calendar_id);
-}
-
-// Creates a Supabase Auth user for this email and sends Supabase's built-in
-// invite email, which lands on our own set-password.html (customized in the
-// Supabase dashboard's Email Templates). inviteUserByEmail doesn't accept
-// app_metadata directly -- confirmed live -- so the tag is applied in a
-// second call right after. Shared by both client-login invites (tagged
-// client_id) and admin invites (tagged role: 'admin').
-async function inviteUser({ email, appMetadata }) {
-  const { data, error } = await getSupabase().auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.APP_BASE_URL}/set-password.html`,
-  });
-  if (error) throw error;
-  const { error: tagErr } = await getSupabase().auth.admin.updateUserById(data.user.id, {
-    app_metadata: appMetadata,
-  });
-  if (tagErr) throw tagErr;
-  return data.user;
-}
-
-function inviteUserForClient({ email, clientId }) {
-  return inviteUser({ email, appMetadata: { client_id: clientId } });
 }
 
 router.get('/clients', async (req, res, next) => {
@@ -83,38 +62,10 @@ router.get('/clients/:id', async (req, res, next) => {
   }
 });
 
-// "Create New Account" -- just a business name + the owner's email. GHL
-// credentials are deliberately not collected here; they're added later via
-// the client detail card, once the account already exists and the owner
-// has already set their own password.
-router.post('/clients', async (req, res, next) => {
-  const { name, email } = req.body || {};
-  if (!name || !email) {
-    return res.status(400).json({ error: 'name and email are required' });
-  }
-  try {
-    const { data: client, error } = await getSupabase()
-      .from('clients')
-      .insert({ name })
-      .select()
-      .single();
-    if (error) throw error;
-
-    try {
-      await inviteUserForClient({ email, clientId: client.id });
-    } catch (inviteErr) {
-      // Don't leave a loginless, confusing client record behind -- let the
-      // VA just retry "Create New Account" cleanly instead.
-      await getSupabase().from('clients').delete().eq('id', client.id);
-      throw inviteErr;
-    }
-
-    res.status(201).json({ client: { ...client, ghl_api_token: maskToken(client.ghl_api_token), connected: isConnected(client) } });
-  } catch (err) {
-    next(err);
-  }
-});
-
+// Client accounts are no longer created by hand here -- they're created by
+// the GHL signup webhook (server/routes/webhooks.js) when the "Portal
+// Optin" form is submitted. The VA's only job is filling in GHL
+// credentials below, once the account already shows up as Not Connected.
 router.put('/clients/:id', async (req, res, next) => {
   const { name, ghlLocationId, ghlApiToken, ghlCalendarId, ghlPipelineId, notes } = req.body || {};
   try {
@@ -153,6 +104,38 @@ router.get('/clients/:id/users', async (req, res, next) => {
       .filter((u) => u.app_metadata?.client_id === req.params.id)
       .map((u) => ({ id: u.id, email: u.email, createdAt: u.created_at }));
     res.json({ users });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// "Switch to Account" -- lets an agency admin jump straight into a client's
+// own portal session without knowing their password. Generates a Supabase
+// magic-link for that client's earliest portal login and hands back the
+// action link; the frontend opens it directly, which lets Supabase's JS
+// client (detectSessionInUrl, already relied on for invite links) pick up
+// a real session for that user. Note this replaces whatever session is in
+// the browser's local storage for this origin -- the admin will need to
+// log back in to admin.html afterward to return to the Admin portal.
+router.post('/clients/:id/impersonate', async (req, res, next) => {
+  try {
+    const { data: list, error } = await getSupabase().auth.admin.listUsers();
+    if (error) throw error;
+
+    const users = list.users
+      .filter((u) => u.app_metadata?.client_id === req.params.id)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    if (!users.length) {
+      return res.status(404).json({ error: 'This client has no portal login yet.' });
+    }
+
+    const { data, error: linkErr } = await getSupabase().auth.admin.generateLink({
+      type: 'magiclink',
+      email: users[0].email,
+      options: { redirectTo: `${process.env.APP_BASE_URL}/index.html` },
+    });
+    if (linkErr) throw linkErr;
+    res.json({ actionLink: data.properties.action_link });
   } catch (err) {
     next(err);
   }

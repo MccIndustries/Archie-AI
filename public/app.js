@@ -1332,6 +1332,7 @@
       tenant = { connected: true, businessName: '' };
     }
     applyConnectionGate(tenant.connected);
+    document.getElementById('welcomeLine').textContent = tenant.businessName ? `Welcome back, ${tenant.businessName}` : '';
 
     loadDashboard();
   }

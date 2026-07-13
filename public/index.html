@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Archie AI — Portal</title>
+<title>Collision Command — Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
@@ -199,7 +199,7 @@
 
 <header>
   <div class="wrap nav">
-    <div class="brand"><span class="mark"></span><span id="brandName">Archie AI</span></div>
+    <div class="brand"><span class="mark"></span><span id="brandName">Collision Command</span></div>
     <div class="nav-mid">
       <nav class="pills" id="tabs">
         <button class="pill active" data-tab="dashboard">Dashboard</button>
@@ -227,7 +227,10 @@
   <!-- DASHBOARD -->
   <section class="section active" id="tab-dashboard">
     <div class="toolbar">
-      <h1 class="page-title" style="margin-bottom:0">Shop Performance Overview</h1>
+      <div>
+        <p class="muted" id="welcomeLine" style="margin-bottom:4px;font-weight:600"></p>
+        <h1 class="page-title" style="margin-bottom:0">Shop Performance Overview</h1>
+      </div>
       <div class="rangebar" id="rangebar">
         <button class="rbtn active" data-range="">All time</button>
         <button class="rbtn" data-range="7">7 days</button>

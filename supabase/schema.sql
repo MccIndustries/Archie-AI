@@ -52,10 +52,17 @@ create index if not exists job_files_location_id_idx on job_files (location_id);
 -- takes effect immediately, no redeploy. A freshly created account has
 -- neither ghl_location_id nor ghl_api_token yet (both null) until the
 -- Admin portal fills them in, hence both are nullable.
+-- name/email/phone/contact_name are captured from the GHL "Portal Optin"
+-- form via the signup webhook (server/routes/webhooks.js) -- email is
+-- unique so a duplicate form submission is recognized and skipped rather
+-- than creating a second row.
 create table if not exists clients (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
   name text not null,
+  email text unique,
+  phone text,
+  contact_name text,
   ghl_location_id text unique,
   ghl_api_token text,
   ghl_calendar_id text,
@@ -66,3 +73,6 @@ create table if not exists clients (
 -- Migration for a pre-existing clients table created before this change:
 -- alter table clients alter column ghl_location_id drop not null;
 -- alter table clients alter column ghl_api_token drop not null;
+-- alter table clients add column if not exists email text unique;
+-- alter table clients add column if not exists phone text;
+-- alter table clients add column if not exists contact_name text;

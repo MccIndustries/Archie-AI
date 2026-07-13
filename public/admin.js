@@ -42,7 +42,7 @@
   // ---------- Clients list ----------
   async function loadClients() {
     const body = document.getElementById('clientsBody');
-    body.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
     try {
       const { clients } = await api('/clients');
       clientsCache = clients || [];
@@ -52,40 +52,35 @@
               (c) => `
         <tr>
           <td>${c.name}</td>
+          <td class="muted">${c.email || '—'}</td>
           <td class="mono">${c.ghl_location_id || '<span class="muted">—</span>'}</td>
           <td><span class="badge${c.connected ? ' connected' : ''}">${c.connected ? 'Connected' : 'Not Connected'}</span></td>
           <td class="muted">${new Date(c.created_at).toLocaleDateString()}</td>
           <td><span class="link" data-manage="${c.id}">Manage</span></td>
+          <td><span class="link" data-impersonate="${c.id}">Switch to Account</span></td>
         </tr>`
             )
             .join('')
-        : '<tr><td colspan="5" class="muted">No clients yet.</td></tr>';
+        : '<tr><td colspan="7" class="muted">No clients yet — accounts appear here once a shop submits the signup form.</td></tr>';
       body.querySelectorAll('[data-manage]').forEach((el) => {
         el.addEventListener('click', () => openClientDetail(el.dataset.manage));
       });
+      body.querySelectorAll('[data-impersonate]').forEach((el) => {
+        el.addEventListener('click', () => switchToAccount(el.dataset.impersonate));
+      });
     } catch (err) {
-      body.innerHTML = `<tr><td colspan="5">${err.message}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="7">${err.message}</td></tr>`;
     }
   }
 
-  document.getElementById('addClientBtn').addEventListener('click', () => {
-    ['acName', 'acEmail'].forEach((id) => (document.getElementById(id).value = ''));
-    openModal('addClientModal');
-  });
-
-  document.getElementById('acSave').addEventListener('click', async () => {
-    const name = document.getElementById('acName').value.trim();
-    const email = document.getElementById('acEmail').value.trim();
-    if (!name || !email) return toast('Enter a business name and email.', true);
+  async function switchToAccount(clientId) {
     try {
-      await api('/clients', { method: 'POST', body: JSON.stringify({ name, email }) });
-      closeModal('addClientModal');
-      toast('Account created — invite sent.');
-      loadClients();
+      const { actionLink } = await api(`/clients/${clientId}/impersonate`, { method: 'POST' });
+      window.open(actionLink, '_blank');
     } catch (err) {
       toast(err.message, true);
     }
-  });
+  }
 
   // ---------- Client detail ----------
   function renderConnectionBadge(client) {
@@ -100,6 +95,8 @@
     try {
       const { client } = await api(`/clients/${id}`);
       document.getElementById('cdName').textContent = client.name;
+      const contactBits = [client.contact_name, client.email, client.phone].filter(Boolean);
+      document.getElementById('cdContact').textContent = contactBits.length ? contactBits.join(' · ') : 'No contact info on file.';
       renderConnectionBadge(client);
       document.getElementById('cdLocationId').value = client.ghl_location_id || '';
       const tokenInput = document.getElementById('cdToken');

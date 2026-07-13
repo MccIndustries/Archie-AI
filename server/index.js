@@ -14,11 +14,13 @@ const slotsRoutes = require('./routes/slots');
 const reportsRoutes = require('./routes/reports');
 const conversationsRoutes = require('./routes/conversations');
 const adminRoutes = require('./routes/admin');
+const webhooksRoutes = require('./routes/webhooks');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 app.use(express.json());
 
+app.use('/api/webhooks', webhooksRoutes);
 app.use('/api', authRoutes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/jobs', jobsRoutes);
@@ -38,5 +40,5 @@ app.use(errorHandler);
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
-  console.log(`${process.env.BRAND_NAME || 'Archie AI'} portal listening on http://localhost:${port}`);
+  console.log(`${process.env.BRAND_NAME || 'Collision Command'} portal listening on http://localhost:${port}`);
 });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Archie AI Admin</title>
+<title>Collision Command Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
@@ -69,7 +69,7 @@
 
 <header>
   <div class="wrap nav">
-    <div class="brand"><span class="mark"></span><span id="brandName">Archie AI</span> <span class="tag">ADMIN</span></div>
+    <div class="brand"><span class="mark"></span><span id="brandName">Collision Command</span> <span class="tag">ADMIN</span></div>
     <button class="signout" id="signOut">Sign out</button>
   </div>
 </header>
@@ -77,13 +77,12 @@
 <main class="wrap">
   <h1 class="page-title">Clients</h1>
   <div class="toolbar">
-    <span class="muted">Every onboarded client account, in one place.</span>
-    <button class="gbtn" id="addClientBtn">+ Create New Account</button>
+    <span class="muted">Accounts appear here automatically when a shop submits the signup form.</span>
   </div>
   <div class="card">
     <table>
-      <thead><tr><th>Name</th><th>Location ID</th><th>Connection</th><th>Created</th><th></th></tr></thead>
-      <tbody id="clientsBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+      <thead><tr><th>Name</th><th>Email</th><th>Location ID</th><th>Connection</th><th>Created</th><th colspan="2"></th></tr></thead>
+      <tbody id="clientsBody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
     </table>
   </div>
 
@@ -113,25 +112,12 @@
   </div>
 </div>
 
-<!-- Create New Account modal -->
-<div class="overlay" id="addClientModal">
-  <div class="modal">
-    <h3>Create New Account</h3>
-    <p class="muted" style="font-size:13px">The owner gets an email to set their own password and log in. GHL details are added afterward from this client's card, once the account exists.</p>
-    <label>Client / shop name</label><input id="acName" placeholder="Coastal Collision Center" />
-    <label>Owner's email</label><input id="acEmail" type="email" placeholder="owner@shop.com" />
-    <div class="actions">
-      <button class="btn-secondary" data-close="addClientModal">Cancel</button>
-      <button class="btn-primary" id="acSave">Create Account &amp; Send Invite</button>
-    </div>
-  </div>
-</div>
-
 <!-- Client Detail modal -->
 <div class="overlay" id="clientDetailModal">
   <div class="modal" style="max-width:520px">
     <h3 id="cdName">Client</h3>
     <span class="badge" id="cdConnectionBadge">Not Connected</span>
+    <p class="muted" id="cdContact" style="font-size:13px;margin-top:8px"></p>
     <label>GHL Location ID</label><input id="cdLocationId" />
     <label>GHL Private Integration Token</label>
     <div class="token-row">

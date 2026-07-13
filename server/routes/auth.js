@@ -11,7 +11,7 @@ router.get('/config', (req, res) => {
   res.json({
     supabaseUrl: process.env.SUPABASE_URL || null,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY || null,
-    brandName: process.env.BRAND_NAME || 'Archie AI',
+    brandName: process.env.BRAND_NAME || 'Collision Command',
   });
 });
 
