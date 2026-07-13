@@ -52,10 +52,10 @@
 
   // ---------- Tabs ----------
   function switchTab(tab) {
-    const pill = document.querySelector(`.pill[data-tab="${tab}"]`);
-    if (!pill || pill.classList.contains('soon')) return;
-    document.querySelectorAll('.pill').forEach((p) => p.classList.remove('active'));
-    pill.classList.add('active');
+    const item = document.querySelector(`.navitem[data-tab="${tab}"]`);
+    if (!item) return;
+    document.querySelectorAll('.navitem[data-tab]').forEach((p) => p.classList.remove('active'));
+    item.classList.add('active');
     document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
     document.getElementById('tab-' + tab).classList.add('active');
     if (tab === 'dashboard') loadDashboard();
@@ -68,10 +68,17 @@
   }
 
   document.getElementById('tabs').addEventListener('click', (e) => {
-    const btn = e.target.closest('.pill');
+    const btn = e.target.closest('.navitem[data-tab]');
     if (!btn || !btn.dataset.tab) return;
     switchTab(btn.dataset.tab);
   });
+
+  // "Won" is GHL's own stage/status vocabulary (and the API value job.status
+  // uses) -- left alone on the wire. Only the displayed text becomes
+  // "Completed", everywhere a stage or status name is shown to the user.
+  function displayStageName(name) {
+    return /^won$/i.test((name || '').trim()) ? 'Completed' : name;
+  }
 
   document.addEventListener('click', (e) => {
     const link = e.target.closest('[data-tab-link]');
@@ -115,17 +122,20 @@
     });
   });
 
-  document.getElementById('apptCalendarSelect').addEventListener('change', loadDashboard);
   document.getElementById('attentionPipelineSelect').addEventListener('change', loadDashboard);
+
+  function daysChipClass(days) {
+    if (days > 20) return 'red';
+    if (days >= 10) return 'amber';
+    return 'green';
+  }
 
   async function loadDashboard() {
     try {
       if (!dashPipelinesLoaded) {
-        const [{ pipelines }, { calendars }] = await Promise.all([api('/pipelines'), api('/calendars')]);
+        const { pipelines } = await api('/pipelines');
         const pSel = document.getElementById('attentionPipelineSelect');
         pSel.innerHTML = '<option value="">All pipelines</option>' + pipelines.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
-        const cSel = document.getElementById('apptCalendarSelect');
-        cSel.innerHTML = '<option value="">All calendars</option>' + calendars.map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
         dashPipelinesLoaded = true;
       }
 
@@ -135,15 +145,16 @@
       if (to) params.set('to', to);
       const pipelineId = document.getElementById('attentionPipelineSelect').value;
       if (pipelineId) params.set('pipelineId', pipelineId);
-      const calendarId = document.getElementById('apptCalendarSelect').value;
-      if (calendarId) params.set('calendarId', calendarId);
 
       const dash = await api('/dashboard?' + params.toString());
-      const kpis = document.getElementById('kpis').children;
-      kpis[0].querySelector('.val').textContent = money(dash.totalRevenue);
-      kpis[1].querySelector('.val').textContent = dash.newLeadsToday;
-      kpis[2].querySelector('.val').textContent = money(dash.pipelineValue);
-      kpis[3].querySelector('.val').textContent = dash.appointmentsBooked;
+      document.querySelector('[data-kpi="revenueRecovered"]').textContent = money(dash.totalRevenue);
+      document.querySelector('[data-kpi="jobsInShopValue"]').textContent = money(dash.pipelineValue);
+      document.querySelector('[data-kpi="closedThisMonth"]').textContent = money(dash.closedThisMonth);
+      document.querySelector('[data-kpi="activeJobs"]').textContent = dash.activeJobsCount;
+      const attnCount = dash.jobsNeedingAttention?.length || 0;
+      const attnEl = document.querySelector('[data-kpi="jobsNeedingAttention"]');
+      attnEl.textContent = attnCount;
+      attnEl.classList.toggle('attn', attnCount > 0);
 
       const pipelineBox = document.getElementById('dashPipelineOverviews');
       pipelineBox.innerHTML = (dash.pipelineOverviews || [])
@@ -152,7 +163,7 @@
         <div class="dash-pipeline-block">
           <div class="ph">${p.pipelineName} <span class="muted">(${p.totalJobs} job${p.totalJobs === 1 ? '' : 's'})</span></div>
           <div class="stagebar">
-            ${p.stageCounts.map((s) => `<div class="stagechip"><span class="n">${s.count}</span>${s.stageName}</div>`).join('') || '<span class="muted">No stages.</span>'}
+            ${p.stageCounts.map((s) => `<div class="stagechip${/^won$/i.test(s.stageName) ? ' completed' : ''}"><span class="n">${s.count}</span>${displayStageName(s.stageName)}<span class="v">${money(s.value)}</span></div>`).join('') || '<span class="muted">No stages.</span>'}
           </div>
         </div>`
         )
@@ -170,11 +181,13 @@
         .join('') || '<span class="muted">No upcoming appointments.</span>';
 
       loadDashboardUnreadConvos();
+      renderCallsFollowUps();
+      renderSystemActivity();
 
       const attentionBody = document.getElementById('attentionBody');
       attentionBody.innerHTML = '';
       if (!dash.jobsNeedingAttention?.length) {
-        attentionBody.innerHTML = '<tr><td colspan="4" class="muted">No jobs need attention.</td></tr>';
+        attentionBody.innerHTML = '<tr><td colspan="5" class="muted">No jobs need attention.</td></tr>';
       } else {
         dash.jobsNeedingAttention.forEach((j) => {
           const vehicle = [j.carMake, j.carModel].filter(Boolean).join(' ');
@@ -183,7 +196,8 @@
             <td>#${j.id}</td>
             <td>${j.customerName || '—'}${vehicle ? `<div class="muted" style="font-size:12px">${vehicle}</div>` : ''}</td>
             <td>${money(j.value)}</td>
-            <td>${j.stageName || '—'}</td>
+            <td>${displayStageName(j.stageName) || '—'}</td>
+            <td><span class="days-chip ${daysChipClass(j.daysInStage)}">${j.daysInStage}d</span></td>
           `;
           attentionBody.appendChild(tr);
         });
@@ -191,6 +205,18 @@
     } catch (err) {
       toast(err.message, true);
     }
+  }
+
+  // No call-tracking/automation backend exists yet for this account -- shows
+  // a clean empty state rather than fabricated rows until that's built.
+  function renderCallsFollowUps() {
+    document.getElementById('callsFollowUps').innerHTML =
+      '<div class="empty-panel">No call activity tracked yet for this account.</div>';
+  }
+
+  function renderSystemActivity() {
+    document.getElementById('systemActivity').innerHTML =
+      '<div class="empty-panel">No automated activity tracked yet for this account.</div>';
   }
 
   async function loadDashboardUnreadConvos() {
@@ -602,7 +628,7 @@
       col.className = 'col';
       col.dataset.stageId = stage.id;
       const stageJobs = jobsCache.filter((j) => j.stageId === stage.id);
-      col.innerHTML = `<h4>${stage.name}<span class="n">${stageJobs.length}</span></h4>`;
+      col.innerHTML = `<h4>${displayStageName(stage.name)}<span class="n">${stageJobs.length}</span></h4>`;
       stageJobs.forEach((job) => {
         const card = document.createElement('div');
         card.className = 'jobcard';
@@ -611,10 +637,10 @@
         const contact = contactsCache.find((c) => c.id === job.contactId);
         const vehicle = [job.carMake, job.carModel].filter(Boolean).join(' ');
         card.innerHTML = `
+          <div class="case">Case #${job.id}</div>
           <div class="jn">${contact ? contactName(contact) : job.contactId || ''}</div>
           <div class="jc">${vehicle || job.name}</div>
           ${job.damageDescription ? `<div class="jd">${job.damageDescription}</div>` : ''}
-          <div class="case">Case #${job.id}</div>
         `;
         card.addEventListener('click', () => openJobDetail(job.id));
         card.addEventListener('dragstart', (e) => {
@@ -1046,7 +1072,7 @@
 
     const bar = document.getElementById('repStageBar');
     bar.innerHTML = (stages || [])
-      .map((s) => `<div class="stagechip"><span class="n">${s.count}</span>${s.stageName} · ${money(s.value)}</div>`)
+      .map((s) => `<div class="stagechip${/^won$/i.test(s.stageName) ? ' completed' : ''}"><span class="n">${s.count}</span>${displayStageName(s.stageName)} · ${money(s.value)}</div>`)
       .join('') || '<span class="muted">No stages.</span>';
 
     const body = document.getElementById('repPipelineBody');
@@ -1059,7 +1085,7 @@
         <td>${j.customerName || '—'}</td>
         <td>${[j.carMake, j.carModel].filter(Boolean).join(' ') || '—'}</td>
         <td>${money(j.value)}</td>
-        <td>${j.stageName}</td>
+        <td>${displayStageName(j.stageName)}</td>
       </tr>`
           )
           .join('')
@@ -1308,7 +1334,7 @@
     const cfgRes = await fetch('/api/config');
     const { supabaseUrl, supabaseAnonKey, brandName } = await cfgRes.json();
     if (brandName) {
-      document.title = `${brandName} — Portal`;
+      document.title = brandName;
       document.getElementById('brandName').textContent = brandName;
     }
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -1323,7 +1349,6 @@
       return;
     }
     document.getElementById('userEmail').textContent = session.user.email;
-    document.getElementById('avatar').textContent = session.user.email.slice(0, 2).toUpperCase();
 
     document.getElementById('signOut').addEventListener('click', async () => {
       await supabase.auth.signOut();
@@ -1334,10 +1359,12 @@
       const me = await api('/me');
       tenant = me.tenant;
     } catch {
-      tenant = { connected: true, businessName: '' };
+      tenant = { connected: true, businessName: '', contactName: '' };
     }
     applyConnectionGate(tenant.connected);
     document.getElementById('welcomeLine').textContent = tenant.businessName ? `Welcome back, ${tenant.businessName}` : '';
+    document.getElementById('sidebarShop').textContent = tenant.businessName || '—';
+    document.getElementById('sidebarOwner').textContent = tenant.contactName || '';
 
     loadDashboard();
   }

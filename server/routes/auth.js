@@ -18,7 +18,7 @@ router.get('/config', (req, res) => {
 router.get('/me', requireAuth, (req, res) => {
   res.json({
     user: req.user,
-    tenant: { businessName: req.tenant.businessName, connected: req.tenant.connected },
+    tenant: { businessName: req.tenant.businessName, contactName: req.tenant.contactName, connected: req.tenant.connected },
   });
 });
 

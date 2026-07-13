@@ -80,6 +80,13 @@ router.get('/', async (req, res, next) => {
       .filter((j) => j.status === 'open' && inRange(j.createdAt, from, to))
       .reduce((sum, j) => sum + (Number(j.value) || 0), 0);
 
+    const monthStart = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+    const closedThisMonth = allJobs
+      .filter((j) => j.status === 'won' && j.lastStatusChangeAt && new Date(j.lastStatusChangeAt) >= monthStart)
+      .reduce((sum, j) => sum + (Number(j.value) || 0), 0);
+
+    const activeJobsCount = allJobs.filter((j) => j.status === 'open').length;
+
     const now = Date.now();
     const attentionPool = pipelineId ? allJobs.filter((j) => j.pipelineId === pipelineId) : allJobs;
     const jobsNeedingAttention = attentionPool
@@ -104,11 +111,15 @@ router.get('/', async (req, res, next) => {
         pipelineId: pipeline.id,
         pipelineName: pipeline.name,
         totalJobs: pipelineJobs.length,
-        stageCounts: (pipeline.stages || []).map((stage) => ({
-          stageId: stage.id,
-          stageName: stage.name,
-          count: pipelineJobs.filter((j) => j.stageId === stage.id).length,
-        })),
+        stageCounts: (pipeline.stages || []).map((stage) => {
+          const stageJobs = pipelineJobs.filter((j) => j.stageId === stage.id);
+          return {
+            stageId: stage.id,
+            stageName: stage.name,
+            count: stageJobs.length,
+            value: stageJobs.reduce((sum, j) => sum + (Number(j.value) || 0), 0),
+          };
+        }),
       };
     });
 
@@ -117,6 +128,8 @@ router.get('/', async (req, res, next) => {
       newLeadsToday,
       totalRevenue,
       pipelineValue,
+      closedThisMonth,
+      activeJobsCount,
       appointmentsBooked,
       upcomingAppointments,
       pipelineOverviews,

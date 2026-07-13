@@ -32,6 +32,7 @@ async function requireAuth(req, res, next) {
   req.tenant = {
     clientId: client.id,
     businessName: client.name,
+    contactName: client.contact_name,
     apiToken: client.ghl_api_token,
     locationId: client.ghl_location_id,
     calendarId: client.ghl_calendar_id,
