@@ -25,7 +25,7 @@
   header{background:var(--navy);color:#fff}
   .nav{display:flex;align-items:center;justify-content:space-between;height:70px}
   .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:20px}
-  .mark{width:28px;height:28px;background:#fff;color:var(--navy);display:grid;place-items:center;font-weight:800;font-size:12px}
+  .brand img{height:52px;width:auto;display:block}
   .tag{font-size:11px;font-weight:700;color:rgba(255,255,255,.55);letter-spacing:.5px;margin-left:6px}
   .signout{font-size:13px;font-weight:700;color:rgba(255,255,255,.6);cursor:pointer;background:none;border:none}
   .signout:hover{color:#fff}
@@ -71,7 +71,7 @@
 
 <header>
   <div class="wrap nav">
-    <div class="brand"><span class="mark">CC</span><span id="brandName">Collision Command</span> <span class="tag">ADMIN</span></div>
+    <div class="brand"><img src="/logo.png" alt="Collision Command" /><span id="brandName" style="display:none">Collision Command</span> <span class="tag">ADMIN</span></div>
     <button class="signout" id="signOut">Sign out</button>
   </div>
 </header>
