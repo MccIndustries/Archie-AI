@@ -29,13 +29,26 @@ function firstDefined(obj, keys) {
   return null;
 }
 
+// GHL's real payload puts first_name/last_name/email/phone/custom-fields at
+// the TOP level, but also includes an unrelated nested `contact` object
+// (just attribution/tracking metadata -- no name/email/phone in it). Check
+// the top level first for every field, falling back to `body.contact` only
+// if a given field is missing there, rather than picking one source
+// wholesale -- confirmed live against a real "Portal Optin" submission.
 function extractSignup(body) {
-  const contact = body.contact || body; // some GHL payload variants nest under "contact"
-  const email = firstDefined(contact, ['email', 'Email']);
-  const firstName = firstDefined(contact, ['first_name', 'firstName', 'First Name']);
-  const lastName = firstDefined(contact, ['last_name', 'lastName', 'Last Name']);
-  const phone = firstDefined(contact, ['phone', 'Phone']);
-  const businessName = firstDefined(contact, [
+  const sources = [body, body.contact].filter((s) => s && typeof s === 'object');
+  const find = (keys) => {
+    for (const src of sources) {
+      const val = firstDefined(src, keys);
+      if (val) return val;
+    }
+    return null;
+  };
+  const email = find(['email', 'Email']);
+  const firstName = find(['first_name', 'firstName', 'First Name']);
+  const lastName = find(['last_name', 'lastName', 'Last Name']);
+  const phone = find(['phone', 'Phone']);
+  const businessName = find([
     'business_name',
     'businessName',
     'Business Name',
@@ -43,7 +56,7 @@ function extractSignup(body) {
     'companyName',
     'company',
   ]);
-  const contactName = [firstName, lastName].filter(Boolean).join(' ') || firstDefined(contact, ['full_name', 'name']);
+  const contactName = [firstName, lastName].filter(Boolean).join(' ') || find(['full_name', 'name']);
   return { email, phone, businessName, contactName };
 }
 
