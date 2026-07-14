@@ -122,16 +122,20 @@
   .days-chip.red{background:var(--red-soft);color:var(--red)}
 
   .board{display:grid;gap:14px;grid-auto-flow:column;grid-auto-columns:260px;overflow-x:auto;padding-bottom:6px}
-  .col{background:#fafbfc;border:1px solid var(--line);padding:12px;transition:background .15s,box-shadow .15s}
+  .col{background:#fafbfc;border:1px solid var(--line);border-top:4px solid var(--navy);padding:12px;transition:background .15s,box-shadow .15s}
+  .col.accent-navy{border-top-color:var(--navy)}
+  .col.accent-red{border-top-color:var(--red)}
+  .col.accent-green{border-top-color:var(--green)}
+  .col.accent-amber{border-top-color:var(--amber)}
   .col.drag-over{background:var(--navy-soft);box-shadow:inset 0 0 0 2px var(--navy)}
-  .col h4{font-size:13px;font-weight:800;margin-bottom:10px;display:flex;justify-content:space-between}
-  .col h4 .n{color:var(--ink-faint);font-weight:700}
+  .col h4{font-size:13px;font-weight:800;margin-bottom:2px}
+  .col .col-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-faint);font-weight:700;margin-bottom:10px}
   .jobcard{background:#fff;border:1px solid var(--line);padding:12px;margin-bottom:10px;box-shadow:var(--shadow);cursor:grab}
   .jobcard.dragging{opacity:.4}
-  .jobcard .case{font-weight:700;font-size:11px;color:var(--ink-faint)}
-  .jobcard .jn{font-weight:700;font-size:13.5px;margin-top:4px}
+  .jobcard .jn{font-weight:700;font-size:13.5px}
   .jobcard .jc{font-size:12px;color:var(--ink-soft);margin-top:2px}
-  .jobcard .jd{font-size:11.5px;color:var(--ink-faint);margin-top:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .jobcard .jval{font-size:12px;color:var(--ink-soft);font-weight:700;margin-top:6px}
+  .jobcard .jd{font-size:11.5px;color:var(--ink-faint);margin-top:6px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
   .photogrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
   .photogrid img{width:74px;height:74px;object-fit:cover;border:1px solid var(--line)}
@@ -485,9 +489,16 @@
   <section class="section" id="tab-jobs">
     <h1 class="page-title">Active Jobs</h1>
     <div class="toolbar">
-      <div style="display:flex;gap:10px;flex:1;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;flex:1;flex-wrap:wrap;align-items:center">
         <select id="pipelineSelect" style="max-width:260px"></select>
+        <span class="muted" id="jobsCountBadge" style="font-size:13px;font-weight:700;white-space:nowrap"></span>
         <input class="search" id="jobSearch" placeholder="Search jobs…" />
+        <select id="jobSortSelect" style="max-width:190px">
+          <option value="newest">Sort: Newest first</option>
+          <option value="oldest">Sort: Oldest first</option>
+          <option value="value_desc">Sort: Value high to low</option>
+          <option value="value_asc">Sort: Value low to high</option>
+        </select>
       </div>
       <div style="display:flex;gap:10px;position:relative">
         <button class="btn-secondary" id="jobFilterBtn">Filters <span id="jobFilterCount"></span></button>
@@ -686,6 +697,8 @@
     </div>
     <label>Vehicle</label>
     <div id="jdVehicle" style="font-size:14px;font-weight:600"></div>
+    <label>Job Value</label>
+    <div id="jdValue" style="font-size:14px;font-weight:600"></div>
     <label>Damage description</label>
     <div id="jdDamage" style="font-size:14px;white-space:pre-wrap"></div>
     <label>Status</label>

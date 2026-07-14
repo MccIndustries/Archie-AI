@@ -863,7 +863,18 @@
   let selectedPipelineId = null;
   let jobsCache = [];
   let jobSearchQuery = '';
+  let jobSortOrder = 'newest';
   const jobFilters = { dateFrom: '', dateTo: '' };
+  const COL_ACCENTS = ['navy', 'red', 'green', 'amber'];
+
+  function sortJobs(jobs) {
+    const sorted = [...jobs];
+    if (jobSortOrder === 'oldest') sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    else if (jobSortOrder === 'value_desc') sorted.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0));
+    else if (jobSortOrder === 'value_asc') sorted.sort((a, b) => (Number(a.value) || 0) - (Number(b.value) || 0));
+    else sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return sorted;
+  }
 
   function jobMatchesSearch(job, contact) {
     if (!jobSearchQuery) return true;
@@ -926,6 +937,11 @@
       jobSearchQuery = e.target.value.trim();
       renderBoardFromCache();
     }, 300);
+  });
+
+  document.getElementById('jobSortSelect').addEventListener('change', (e) => {
+    jobSortOrder = e.target.value;
+    renderBoardFromCache();
   });
 
   const jobFilterBtn = document.getElementById('jobFilterBtn');
@@ -1020,16 +1036,25 @@
       board.innerHTML = '<div class="muted">This pipeline has no stages.</div>';
       return;
     }
-    stages.forEach((stage) => {
+
+    const matchesFilters = (j) => {
+      const contact = contactsCache.find((c) => c.id === j.contactId);
+      return jobMatchesSearch(j, contact) && jobMatchesDateFilter(j);
+    };
+    const totalMatching = jobsCache.filter(matchesFilters).length;
+    const countBadge = document.getElementById('jobsCountBadge');
+    if (countBadge) countBadge.textContent = `${totalMatching} job${totalMatching === 1 ? '' : 's'}`;
+
+    stages.forEach((stage, idx) => {
       const col = document.createElement('div');
-      col.className = 'col';
+      col.className = 'col accent-' + COL_ACCENTS[idx % COL_ACCENTS.length];
       col.dataset.stageId = stage.id;
-      const stageJobs = jobsCache.filter((j) => {
-        if (j.stageId !== stage.id) return false;
-        const contact = contactsCache.find((c) => c.id === j.contactId);
-        return jobMatchesSearch(j, contact) && jobMatchesDateFilter(j);
-      });
-      col.innerHTML = `<h4>${displayStageName(stage.name)}<span class="n">${stageJobs.length}</span></h4>`;
+      const stageJobs = sortJobs(jobsCache.filter((j) => j.stageId === stage.id && matchesFilters(j)));
+      const stageValue = stageJobs.reduce((sum, j) => sum + (Number(j.value) || 0), 0);
+      col.innerHTML = `
+        <h4>${displayStageName(stage.name)}</h4>
+        <div class="col-meta"><span>${stageJobs.length} job${stageJobs.length === 1 ? '' : 's'}</span><span>${money(stageValue)}</span></div>
+      `;
       stageJobs.forEach((job) => {
         const card = document.createElement('div');
         card.className = 'jobcard';
@@ -1038,9 +1063,9 @@
         const contact = contactsCache.find((c) => c.id === job.contactId);
         const vehicle = [job.carMake, job.carModel].filter(Boolean).join(' ');
         card.innerHTML = `
-          <div class="case">Case #${job.id}</div>
           <div class="jn">${contact ? contactName(contact) : job.contactId || ''}</div>
           <div class="jc">${vehicle || job.name}</div>
+          <div class="jval">Value: ${money(job.value)}</div>
           ${job.damageDescription ? `<div class="jd">${job.damageDescription}</div>` : ''}
         `;
         card.addEventListener('click', () => openJobDetail(job.id));
@@ -1162,6 +1187,7 @@
 
       document.getElementById('jdContact').textContent = contact ? contactName(contact) : job.contactId || '';
       document.getElementById('jdVehicle').textContent = [job.carMake, job.carModel].filter(Boolean).join(' ') || '—';
+      document.getElementById('jdValue').textContent = money(job.value);
       document.getElementById('jdDamage').textContent = job.damageDescription || '—';
       statusSel.value = job.status || 'open';
       renderJobCustomFields(job.customFieldsDisplay);
