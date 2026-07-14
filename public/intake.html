@@ -81,9 +81,6 @@
 
       <fieldset>
         <legend>Job routing</legend>
-        <label>Pipeline</label>
-        <select id="pipelineId" required></select>
-        <div class="hint">New job starts in this pipeline's first stage.</div>
         <label>Job value ($)</label>
         <input id="jobValue" type="number" min="0" step="1" placeholder="Estimated repair cost" />
       </fieldset>
@@ -129,17 +126,12 @@
     return res.json();
   };
 
-  function fillSelect(sel, items, labelFn) {
-    sel.innerHTML = items.map((it) => `<option value="${it.id}">${labelFn(it)}</option>`).join('');
-  }
-
   try {
     const { pipelines } = await api('/pipelines');
-    fillSelect(document.getElementById('pipelineId'), pipelines, (p) => p.name);
     if (!pipelines.length) {
       const msg = document.getElementById('msg');
       msg.className = 'msg err';
-      msg.textContent = 'No pipelines exist yet — create one from the Jobs tab before running intake.';
+      msg.textContent = 'No pipelines exist yet — contact your agency before running intake.';
     }
   } catch (err) {
     const msg = document.getElementById('msg');
@@ -207,7 +199,6 @@
     fd.append('carMake', document.getElementById('carMake').value.trim());
     fd.append('carModel', document.getElementById('carModel').value.trim());
     fd.append('damageDescription', document.getElementById('damageDescription').value.trim());
-    fd.append('pipelineId', document.getElementById('pipelineId').value);
     fd.append('value', document.getElementById('jobValue').value || '0');
     const startTimeValue = document.getElementById('startTime').value;
     if (startTimeValue) fd.append('startTime', startTimeValue);

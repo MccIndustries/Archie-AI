@@ -76,3 +76,28 @@ create table if not exists clients (
 -- alter table clients add column if not exists email text unique;
 -- alter table clients add column if not exists phone text;
 -- alter table clients add column if not exists contact_name text;
+
+-- Sticky notes shown in the portal for a contact -- covers both notes added
+-- directly on a contact AND notes added from a specific job (source/job_id
+-- tell those apart so the UI can show a "Job" badge + link-back for the
+-- latter). Every write here is mirrored in realtime to the contact's real
+-- GHL note (ghl_note_id keeps the two in sync for later edits/deletes) --
+-- GHL has no separate "opportunity note" concept, only contact notes, so
+-- job-sourced notes are mirrored there too, prefixed with the job's case
+-- number so they're identifiable from inside GHL itself.
+create table if not exists contact_notes (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  location_id text not null,
+  contact_id text not null,
+  job_id text,               -- set only when source = 'job'
+  source text not null default 'contact', -- 'contact' | 'job'
+  body text not null,
+  created_by text,
+  ghl_note_id text
+);
+
+create index if not exists contact_notes_contact_id_idx on contact_notes (contact_id);
+create index if not exists contact_notes_job_id_idx on contact_notes (job_id);
+create index if not exists contact_notes_location_id_idx on contact_notes (location_id);

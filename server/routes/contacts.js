@@ -1,6 +1,7 @@
 const express = require('express');
 const ghl = require('../lib/ghlClient');
 const { logSync } = require('../lib/supabase');
+const { listNotesForContact, createNote } = require('../lib/notes');
 const requireAuth = require('../middleware/requireAuth');
 const requireConnected = require('../middleware/requireConnected');
 
@@ -142,6 +143,33 @@ router.delete('/:id', async (req, res, next) => {
       success: false,
       error: err.message,
     });
+    next(err);
+  }
+});
+
+router.get('/:id/notes', async (req, res, next) => {
+  try {
+    const notes = await listNotesForContact(req.params.id);
+    res.json({ notes });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/notes', async (req, res, next) => {
+  const body = (req.body?.body || '').trim();
+  if (!body) return res.status(400).json({ error: 'body is required' });
+  try {
+    const { note, warning } = await createNote({ contactId: req.params.id, body, userEmail: req.user.email });
+    await logSync({
+      userEmail: req.user.email,
+      action: 'contact.note.create',
+      entityType: 'contact',
+      entityId: req.params.id,
+      success: true,
+    });
+    res.status(201).json({ note, warning });
+  } catch (err) {
     next(err);
   }
 });

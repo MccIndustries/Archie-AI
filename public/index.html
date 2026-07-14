@@ -146,6 +146,12 @@
   .filerow:last-child{border-bottom:none}
   .filerow a{font-weight:600}
 
+  .note-card{border-bottom:1px solid var(--line);padding:10px 0}
+  .note-card:last-child{border-bottom:none}
+  .note-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px}
+  .note-body{font-size:13.5px;white-space:pre-wrap;word-break:break-word}
+  .note-actions{display:flex;gap:12px;margin-top:6px;font-size:12px}
+
   .stagerow{display:flex;gap:8px;margin-top:8px}
   .stagerow input{flex:1}
   .stagerow button{background:none;border:none;color:var(--red);font-weight:700;cursor:pointer;font-size:13px}
@@ -154,6 +160,15 @@
   .appt-row:last-child{border-bottom:none}
   .appt-row:hover{background:#fafbfc}
   .appt-row .t{font-weight:700}
+
+  .contact-page{display:grid;grid-template-columns:280px 1fr 300px;gap:16px;height:calc(100vh - 170px);min-height:460px}
+  .cp-col{overflow-y:auto}
+  .cp-details h3{margin-bottom:14px}
+  .cp-details label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:12px 0 5px}
+  .cp-details input{width:100%;padding:9px 11px;border:1px solid var(--line);font-size:13.5px;font-family:inherit}
+  .cp-convo{display:flex;flex-direction:column}
+  .cp-convo .convo-thread{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:6px 2px}
+  .cp-notes textarea{font-family:inherit}
 
   .convo-layout{display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100vh - 200px);min-height:420px}
   .convo-list-pane{overflow-y:auto;padding:10px}
@@ -406,9 +421,63 @@
     <div class="chiprow" id="contactFilterChips"></div>
     <div class="card" style="margin-top:0">
       <table>
-        <thead><tr><th style="width:32px"><input type="checkbox" id="contactSelectAll" /></th><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th></tr></thead>
-        <tbody id="contactsBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+        <thead><tr><th style="width:32px"><input type="checkbox" id="contactSelectAll" /></th><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th><th>Active Jobs</th></tr></thead>
+        <tbody id="contactsBody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- CONTACT (full page view) -->
+  <section class="section" id="tab-contact-view">
+    <div class="toolbar">
+      <span class="link" id="cpBack">← Back to Contacts</span>
+    </div>
+    <div class="contact-page">
+      <div class="cp-col cp-details card" style="margin-top:0">
+        <h3 id="cpName">Contact</h3>
+        <label>First name</label><input id="cpFirst" />
+        <label>Last name</label><input id="cpLast" />
+        <label>Email</label><input id="cpEmail" type="email" />
+        <label>Phone</label><input id="cpPhone" type="tel" />
+        <label>Tags</label>
+        <div class="tagedit" id="cpTags"></div>
+        <input id="cpNewTag" placeholder="Add a tag and press Enter" style="margin-top:8px" />
+        <div class="actions" style="justify-content:flex-start;margin-top:16px">
+          <button class="btn-primary" id="cpSave">Save changes</button>
+          <button class="btn-danger" id="cpDelete">Delete Contact</button>
+        </div>
+        <h3 style="margin-top:26px">Active Jobs</h3>
+        <div id="cpJobs"><div class="loading">Loading…</div></div>
+      </div>
+
+      <div class="cp-col cp-convo card" style="margin-top:0">
+        <div id="cpConvoHeader" class="convo-header muted">Loading…</div>
+        <div id="cpConvoThread" class="convo-thread"></div>
+        <div class="convo-reply" id="cpConvoReplyBox" style="display:none">
+          <select id="cpFromNumber" style="max-width:170px"></select>
+          <input id="cpConvoReplyInput" placeholder="Type a message…" />
+          <button class="btn-primary" id="cpConvoSendBtn">Send</button>
+        </div>
+        <div id="cpConvoStart" style="display:none;padding:20px 0;text-align:center">
+          <p class="muted" style="margin-bottom:10px">Start a new conversation</p>
+          <button class="btn-primary" id="cpConvoStartBtn">Start Conversation</button>
+        </div>
+      </div>
+
+      <div class="cp-col cp-notes card" style="margin-top:0">
+        <div class="sec-head">
+          <h3>Notes</h3>
+          <button class="btn-secondary" id="cpAddNoteBtn" style="padding:6px 12px;font-size:12.5px">+ Add</button>
+        </div>
+        <div id="cpNoteForm" style="display:none;margin:10px 0">
+          <textarea id="cpNoteInput" rows="3" style="width:100%;padding:10px;border:1px solid var(--line);font-size:13.5px"></textarea>
+          <div class="actions" style="margin-top:8px">
+            <button class="btn-secondary" id="cpNoteCancel">Cancel</button>
+            <button class="btn-primary" id="cpNoteSave">Save</button>
+          </div>
+        </div>
+        <div id="cpNotesList"><div class="loading">Loading…</div></div>
+      </div>
     </div>
   </section>
 
@@ -416,12 +485,36 @@
   <section class="section" id="tab-jobs">
     <h1 class="page-title">Active Jobs</h1>
     <div class="toolbar">
-      <select id="pipelineSelect" style="max-width:260px"></select>
-      <div style="display:flex;gap:10px">
-        <button class="btn-secondary" id="newPipelineBtn">+ New Pipeline</button>
+      <div style="display:flex;gap:10px;flex:1;flex-wrap:wrap">
+        <select id="pipelineSelect" style="max-width:260px"></select>
+        <input class="search" id="jobSearch" placeholder="Search jobs…" />
+      </div>
+      <div style="display:flex;gap:10px;position:relative">
+        <button class="btn-secondary" id="jobFilterBtn">Filters <span id="jobFilterCount"></span></button>
         <a class="gbtn" id="newJobLink" href="/intake.html">+ New Job</a>
+        <div class="filterpanel" id="jobFilterPanel">
+          <div class="fp-row">
+            <label>Created</label>
+            <div class="fp-presets" id="jobDatePresets">
+              <button type="button" class="fp-preset" data-preset="">Any time</button>
+              <button type="button" class="fp-preset" data-preset="today">Today</button>
+              <button type="button" class="fp-preset" data-preset="week">This week</button>
+              <button type="button" class="fp-preset" data-preset="month">This month</button>
+            </div>
+            <div class="fp-daterange">
+              <input type="date" id="jobDateFrom" />
+              <span class="muted">to</span>
+              <input type="date" id="jobDateTo" />
+            </div>
+          </div>
+          <div class="fp-actions">
+            <button class="btn-secondary" id="jobFilterClear">Clear</button>
+            <button class="btn-primary" id="jobFilterApply">Apply</button>
+          </div>
+        </div>
       </div>
     </div>
+    <div class="chiprow" id="jobFilterChips"></div>
     <div class="board" id="board"><div class="loading">Loading…</div></div>
   </section>
 
@@ -583,29 +676,14 @@
   </div>
 </div>
 
-<!-- Contact detail modal -->
-<div class="overlay" id="detailModal">
-  <div class="modal">
-    <h3 id="dName">Contact</h3>
-    <label>First name</label><input id="dFirst" />
-    <label>Last name</label><input id="dLast" />
-    <label>Email</label><input id="dEmail" type="email" />
-    <label>Phone</label><input id="dPhone" type="tel" />
-    <label>Tags</label>
-    <div class="tagedit" id="dTags"></div>
-    <input id="dNewTag" placeholder="Add a tag and press Enter" style="margin-top:8px" />
-    <div class="actions">
-      <button class="btn-secondary" data-close="detailModal">Close</button>
-      <button class="btn-primary" id="dSave">Save changes</button>
-    </div>
-  </div>
-</div>
-
 <!-- Job Detail modal -->
 <div class="overlay" id="jobDetailModal">
   <div class="modal" style="max-width:480px">
     <h3 id="jdCase">Case #</h3>
-    <div class="muted" id="jdContact" style="margin-bottom:10px"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="muted" id="jdContact"></div>
+      <span class="link" id="jdViewContact" style="font-size:12.5px">View Contact →</span>
+    </div>
     <label>Vehicle</label>
     <div id="jdVehicle" style="font-size:14px;font-weight:600"></div>
     <label>Damage description</label>
@@ -646,23 +724,21 @@
       </div>
     </div>
 
+    <div class="sec-head" style="margin-top:16px">
+      <label style="margin:0">Notes</label>
+      <button type="button" class="btn-secondary" id="jdAddNoteBtn" style="padding:6px 12px;font-size:12.5px">+ Add Note</button>
+    </div>
+    <div id="jdNoteForm" style="display:none;margin-top:8px">
+      <textarea id="jdNoteInput" rows="3" style="width:100%;padding:10px;border:1px solid var(--line);font-family:inherit;font-size:13.5px"></textarea>
+      <div class="actions" style="margin-top:8px">
+        <button type="button" class="btn-secondary" id="jdNoteCancel">Cancel</button>
+        <button type="button" class="btn-primary" id="jdNoteSave">Save</button>
+      </div>
+    </div>
+    <div id="jdNotes" style="margin-top:8px"></div>
+
     <div class="actions">
       <button class="btn-secondary" data-close="jobDetailModal">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- New Pipeline modal -->
-<div class="overlay" id="pipelineModal">
-  <div class="modal">
-    <h3>New Pipeline</h3>
-    <label>Pipeline name</label><input id="pName" placeholder="Repair Pipeline" />
-    <label>Stages</label>
-    <div id="pStages"></div>
-    <button type="button" class="btn-secondary" id="pAddStage" style="margin-top:8px">+ Add stage</button>
-    <div class="actions">
-      <button class="btn-secondary" data-close="pipelineModal">Cancel</button>
-      <button class="btn-primary" id="pSave">Create pipeline</button>
     </div>
   </div>
 </div>

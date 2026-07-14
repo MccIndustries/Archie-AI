@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const ghl = require('../lib/ghlClient');
 const { logSync, listJobFiles, uploadJobFile } = require('../lib/supabase');
+const { listNotesForJob, createNote } = require('../lib/notes');
 const requireAuth = require('../middleware/requireAuth');
 const requireConnected = require('../middleware/requireConnected');
 
@@ -110,6 +111,36 @@ router.post('/:id/files', upload.array('files', 10), async (req, res, next) => {
       success: false,
       error: err.message,
     });
+    next(err);
+  }
+});
+
+router.get('/:id/notes', async (req, res, next) => {
+  try {
+    const notes = await listNotesForJob(req.params.id);
+    res.json({ notes });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/notes', async (req, res, next) => {
+  const jobId = req.params.id;
+  const body = (req.body?.body || '').trim();
+  if (!body) return res.status(400).json({ error: 'body is required' });
+  try {
+    const job = await ghl.getJob(jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const { note, warning } = await createNote({ contactId: job.contactId, jobId, body, userEmail: req.user.email });
+    await logSync({
+      userEmail: req.user.email,
+      action: 'job.note.create',
+      entityType: 'job',
+      entityId: jobId,
+      success: true,
+    });
+    res.status(201).json({ note, warning });
+  } catch (err) {
     next(err);
   }
 });

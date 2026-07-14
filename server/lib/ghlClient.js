@@ -452,6 +452,28 @@ function listPhoneNumbers() {
   );
 }
 
+// ---------- Contact Notes ----------
+// Mirrors the portal's own sticky notes into the contact's real GHL notes,
+// so the shop sees the same notes whether they're looking in FlowSuite or
+// directly in GHL. Verified live against the real API: GET/POST/PUT/DELETE
+// /contacts/{contactId}/notes/{id}, body shape { body: string }.
+
+function listGhlNotes(contactId) {
+  return request('GET', `/contacts/${contactId}/notes`).then((d) => d.notes || []);
+}
+
+function createGhlNote(contactId, body) {
+  return request('POST', `/contacts/${contactId}/notes`, { body: { body } }).then((d) => d.note || d);
+}
+
+function updateGhlNote(contactId, noteId, body) {
+  return request('PUT', `/contacts/${contactId}/notes/${noteId}`, { body: { body } }).then((d) => d.note || d);
+}
+
+function deleteGhlNote(contactId, noteId) {
+  return request('DELETE', `/contacts/${contactId}/notes/${noteId}`);
+}
+
 // ---------- Calendars ----------
 
 function listCalendars() {
@@ -676,6 +698,10 @@ module.exports = {
   getConversationMessages,
   sendMessage,
   listPhoneNumbers,
+  listGhlNotes,
+  createGhlNote,
+  updateGhlNote,
+  deleteGhlNote,
   listCalendars,
   listCalendarsFor,
   listAppointments,

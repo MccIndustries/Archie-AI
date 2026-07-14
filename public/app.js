@@ -270,7 +270,7 @@
     if (query !== undefined) lastContactQuery = query;
     selectedContactIds.clear();
     const body = document.getElementById('contactsBody');
-    body.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
     try {
       const params = new URLSearchParams();
       if (lastContactQuery) params.set('query', lastContactQuery);
@@ -278,12 +278,20 @@
       if (contactFilters.dateFrom) params.set('dateFrom', contactFilters.dateFrom);
       if (contactFilters.dateTo) params.set('dateTo', contactFilters.dateTo);
       const qs = params.toString();
-      const data = await api('/contacts' + (qs ? `?${qs}` : ''));
+      const [data, jobs] = await Promise.all([
+        api('/contacts' + (qs ? `?${qs}` : '')),
+        ensureAllJobsCache().catch(() => []),
+      ]);
       contactsCache = data.contacts || [];
+      const activeJobCounts = new Map();
+      (jobs || []).forEach((j) => {
+        if (j.status !== 'open') return;
+        activeJobCounts.set(j.contactId, (activeJobCounts.get(j.contactId) || 0) + 1);
+      });
       body.innerHTML = '';
       updateDeleteContactsUI();
       if (!contactsCache.length) {
-        body.innerHTML = '<tr><td colspan="5" class="muted">No contacts found.</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="muted">No contacts found.</td></tr>';
         return;
       }
       contactsCache.forEach((c) => {
@@ -295,10 +303,11 @@
           <td>${c.email || '<span class="muted">—</span>'}</td>
           <td>${c.phone || '<span class="muted">—</span>'}</td>
           <td>${(c.tags || []).map((t) => `<span class="chip">${t}</span>`).join('') || '<span class="muted">—</span>'}</td>
+          <td>${activeJobCounts.get(c.id) || 0}</td>
         `;
         tr.addEventListener('click', (e) => {
           if (e.target.classList.contains('contact-check')) return;
-          openContactDetail(c.id);
+          showContactPage(c.id);
         });
         tr.querySelector('.contact-check').addEventListener('change', (e) => {
           if (e.target.checked) selectedContactIds.add(c.id);
@@ -308,7 +317,7 @@
         body.appendChild(tr);
       });
     } catch (err) {
-      body.innerHTML = `<tr><td colspan="5">${err.message}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6">${err.message}</td></tr>`;
     }
   }
 
@@ -483,90 +492,398 @@
     }
   });
 
-  let activeContactId = null;
+  // ---------- Contact full page ----------
+  let cpContactId = null;
+  let cpConvoId = null;
+  let cpPhoneNumbersLoaded = false;
 
-  function renderTagEdit(tags) {
-    const box = document.getElementById('dTags');
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  async function showContactPage(contactId) {
+    showSection('tab-contact-view');
+    document.querySelectorAll('.navitem[data-tab]').forEach((p) => p.classList.remove('active'));
+    document.querySelector('.navitem[data-tab="contacts"]').classList.add('active');
+    await loadContactPage(contactId);
+  }
+
+  document.getElementById('cpBack').addEventListener('click', () => switchTab('contacts'));
+
+  function renderCpTagEdit(tags) {
+    const box = document.getElementById('cpTags');
     box.innerHTML = '';
     (tags || []).forEach((t) => {
       const chip = document.createElement('span');
       chip.className = 'chip';
       chip.textContent = t;
       chip.title = 'Click to remove';
-      chip.addEventListener('click', () => removeTag(t));
+      chip.addEventListener('click', () => removeCpTag(t));
       box.appendChild(chip);
     });
   }
 
-  async function openContactDetail(id) {
+  async function loadContactPage(contactId) {
+    cpContactId = contactId;
+    cpConvoId = null;
+    document.getElementById('cpNoteForm').style.display = 'none';
+    document.getElementById('cpJobs').innerHTML = '<div class="loading">Loading…</div>';
+    document.getElementById('cpNotesList').innerHTML = '<div class="loading">Loading…</div>';
+    document.getElementById('cpConvoThread').innerHTML = '';
+    document.getElementById('cpConvoHeader').textContent = 'Loading…';
+    document.getElementById('cpConvoHeader').className = 'convo-header muted';
+    document.getElementById('cpConvoReplyBox').style.display = 'none';
+    document.getElementById('cpConvoStart').style.display = 'none';
+
     try {
-      const { contact } = await api('/contacts/' + id);
-      activeContactId = contact.id;
-      document.getElementById('dName').textContent = contactName(contact);
-      document.getElementById('dFirst').value = contact.firstName || '';
-      document.getElementById('dLast').value = contact.lastName || '';
-      document.getElementById('dEmail').value = contact.email || '';
-      document.getElementById('dPhone').value = contact.phone || '';
-      renderTagEdit(contact.tags);
-      openModal('detailModal');
+      const { contact } = await api('/contacts/' + contactId);
+      document.getElementById('cpName').textContent = contactName(contact);
+      document.getElementById('cpFirst').value = contact.firstName || '';
+      document.getElementById('cpLast').value = contact.lastName || '';
+      document.getElementById('cpEmail').value = contact.email || '';
+      document.getElementById('cpPhone').value = contact.phone || '';
+      renderCpTagEdit(contact.tags);
     } catch (err) {
       toast(err.message, true);
     }
+
+    loadCpJobs(contactId);
+    loadCpNotes(contactId);
+    loadCpConversation(contactId);
   }
 
-  document.getElementById('dSave').addEventListener('click', async () => {
+  document.getElementById('cpSave').addEventListener('click', async () => {
     try {
-      await api('/contacts/' + activeContactId, {
+      await api('/contacts/' + cpContactId, {
         method: 'PUT',
         body: JSON.stringify({
-          firstName: document.getElementById('dFirst').value.trim(),
-          lastName: document.getElementById('dLast').value.trim(),
-          email: document.getElementById('dEmail').value.trim(),
-          phone: document.getElementById('dPhone').value.trim(),
+          firstName: document.getElementById('cpFirst').value.trim(),
+          lastName: document.getElementById('cpLast').value.trim(),
+          email: document.getElementById('cpEmail').value.trim(),
+          phone: document.getElementById('cpPhone').value.trim(),
         }),
       });
       toast('Contact updated.');
-      closeModal('detailModal');
-      loadContacts();
+      document.getElementById('cpName').textContent =
+        [document.getElementById('cpFirst').value, document.getElementById('cpLast').value].filter(Boolean).join(' ') || 'Contact';
     } catch (err) {
       toast(err.message, true);
     }
   });
 
-  async function removeTag(tag) {
+  document.getElementById('cpDelete').addEventListener('click', async () => {
+    if (!confirm('Delete this contact? This can\'t be undone.')) return;
     try {
-      await api(`/contacts/${activeContactId}/tags`, {
-        method: 'DELETE',
-        body: JSON.stringify({ tags: [tag] }),
-      });
+      await api('/contacts/' + cpContactId, { method: 'DELETE' });
+      toast('Contact deleted.');
+      switchTab('contacts');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  async function removeCpTag(tag) {
+    try {
+      await api(`/contacts/${cpContactId}/tags`, { method: 'DELETE', body: JSON.stringify({ tags: [tag] }) });
       toast(`Tag "${tag}" removed.`);
-      openContactDetail(activeContactId);
+      const { contact } = await api('/contacts/' + cpContactId);
+      renderCpTagEdit(contact.tags);
     } catch (err) {
       toast(err.message, true);
     }
   }
 
-  document.getElementById('dNewTag').addEventListener('keydown', async (e) => {
+  document.getElementById('cpNewTag').addEventListener('keydown', async (e) => {
     if (e.key !== 'Enter') return;
     const tag = e.target.value.trim();
     if (!tag) return;
     try {
-      await api(`/contacts/${activeContactId}/tags`, {
-        method: 'POST',
-        body: JSON.stringify({ tags: [tag] }),
-      });
+      await api(`/contacts/${cpContactId}/tags`, { method: 'POST', body: JSON.stringify({ tags: [tag] }) });
       e.target.value = '';
       toast(`Tag "${tag}" added.`);
-      openContactDetail(activeContactId);
+      const { contact } = await api('/contacts/' + cpContactId);
+      renderCpTagEdit(contact.tags);
     } catch (err) {
       toast(err.message, true);
     }
   });
+
+  // All jobs across every pipeline -- used for the Contacts table's "Active
+  // Jobs" count column and this page's linked-jobs list. Cached for the
+  // session; refreshed whenever a job write happens elsewhere.
+  let allJobsCache = null;
+  async function ensureAllJobsCache(force) {
+    if (allJobsCache && !force) return allJobsCache;
+    const { jobs } = await api('/jobs');
+    allJobsCache = jobs || [];
+    return allJobsCache;
+  }
+
+  function jobStatusBadgeClass(status) {
+    if (status === 'open') return 'amber';
+    if (/^won$/i.test(status || '')) return 'green';
+    return 'red';
+  }
+
+  async function loadCpJobs(contactId) {
+    const box = document.getElementById('cpJobs');
+    try {
+      const jobs = await ensureAllJobsCache();
+      const linked = jobs.filter((j) => j.contactId === contactId);
+      if (!linked.length) {
+        box.innerHTML = '<div class="muted" style="font-size:13px">No jobs for this contact.</div>';
+        return;
+      }
+      box.innerHTML = linked
+        .map(
+          (j) => `
+        <div class="dash-row" data-open-job="${j.id}">
+          <div><div class="name">Case #${j.id}</div><div class="sub">${[j.carMake, j.carModel].filter(Boolean).join(' ') || j.name || ''}</div></div>
+          <span class="status-badge ${jobStatusBadgeClass(j.status)}">${displayStageName(j.stageName) || j.status}</span>
+        </div>`
+        )
+        .join('');
+      box.querySelectorAll('[data-open-job]').forEach((el) => {
+        el.addEventListener('click', () => openJobDetail(el.dataset.openJob));
+      });
+    } catch (err) {
+      box.innerHTML = `<div class="muted">${err.message}</div>`;
+    }
+  }
+
+  // ---------- Contact page: conversation ----------
+  async function loadCpConversation(contactId) {
+    const header = document.getElementById('cpConvoHeader');
+    const thread = document.getElementById('cpConvoThread');
+    const replyBox = document.getElementById('cpConvoReplyBox');
+    const startBox = document.getElementById('cpConvoStart');
+    try {
+      if (!cpPhoneNumbersLoaded) {
+        try {
+          const { phoneNumbers } = await api('/conversations/numbers');
+          document.getElementById('cpFromNumber').innerHTML = (phoneNumbers || [])
+            .map((n) => `<option value="${n.value}">${n.title || n.value}</option>`)
+            .join('') || '<option value="">Default number</option>';
+        } catch {
+          document.getElementById('cpFromNumber').innerHTML = '<option value="">Default number</option>';
+        }
+        cpPhoneNumbersLoaded = true;
+      }
+
+      const { conversations } = await api('/conversations');
+      const convo = (conversations || []).find((c) => c.contactId === contactId);
+      if (!convo) {
+        header.className = 'convo-header muted';
+        header.textContent = 'Conversation';
+        thread.innerHTML = '';
+        startBox.style.display = 'block';
+        return;
+      }
+      cpConvoId = convo.id;
+      header.className = 'convo-header';
+      header.innerHTML = `
+        <div class="name">${convo.contactName || convo.fullName || 'Unknown'}</div>
+        <div class="meta">
+          ${convo.phone ? `<span>📞 ${convo.phone}</span>` : ''}
+          ${convo.email ? `<span>✉ ${convo.email}</span>` : ''}
+        </div>`;
+      replyBox.style.display = 'flex';
+      await loadCpMessages();
+    } catch (err) {
+      header.className = 'convo-header muted';
+      header.textContent = err.message;
+    }
+  }
+
+  async function loadCpMessages() {
+    const thread = document.getElementById('cpConvoThread');
+    if (!cpConvoId) return;
+    thread.innerHTML = '<div class="muted">Loading…</div>';
+    try {
+      const { messages } = await api(`/conversations/${cpConvoId}/messages`);
+      const real = (messages || []).filter((m) => m.messageType === 'TYPE_SMS' || m.messageType === 'TYPE_EMAIL');
+      if (!real.length) {
+        thread.innerHTML = '<div class="muted">No messages yet.</div>';
+        return;
+      }
+      thread.innerHTML = real
+        .slice()
+        .reverse()
+        .map((m) => {
+          const failed = m.status === 'failed';
+          const cls = failed ? 'failed' : m.direction === 'outbound' ? 'outbound' : 'inbound';
+          const time = new Date(m.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+          return `<div class="msg-bubble ${cls}">${m.body || ''}<div class="mt">${failed ? `⚠ ${m.error || 'Failed to send'}` : time}</div></div>`;
+        })
+        .join('');
+      thread.scrollTop = thread.scrollHeight;
+    } catch (err) {
+      thread.innerHTML = `<div class="muted">${err.message}</div>`;
+    }
+  }
+
+  document.getElementById('cpConvoStartBtn').addEventListener('click', async () => {
+    const phone = document.getElementById('cpPhone').value.trim();
+    if (!phone) return toast('Add a phone number for this contact first.', true);
+    try {
+      const { conversation } = await api('/conversations', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: document.getElementById('cpName').textContent,
+          phone,
+          email: document.getElementById('cpEmail').value.trim(),
+        }),
+      });
+      cpConvoId = conversation.id;
+      document.getElementById('cpConvoStart').style.display = 'none';
+      document.getElementById('cpConvoReplyBox').style.display = 'flex';
+      toast('Conversation started.');
+      await loadCpMessages();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  async function sendCpConvoReply() {
+    const input = document.getElementById('cpConvoReplyInput');
+    const message = input.value.trim();
+    if (!message || !cpConvoId) return;
+    input.value = '';
+    const fromNumber = document.getElementById('cpFromNumber').value;
+    try {
+      await api(`/conversations/${cpConvoId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ contactId: cpContactId, message, fromNumber }),
+      });
+      await loadCpMessages();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  document.getElementById('cpConvoSendBtn').addEventListener('click', sendCpConvoReply);
+  document.getElementById('cpConvoReplyInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendCpConvoReply();
+  });
+
+  // ---------- Contact page: notes ----------
+  function renderNoteItem(n) {
+    const isJob = n.source === 'job';
+    const time = new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return `
+      <div class="note-card" data-note="${n.id}">
+        <div class="note-head">
+          <span class="status-badge ${isJob ? 'amber' : 'green'}">${isJob ? 'Job' : 'Contact'}</span>
+          <span class="muted" style="font-size:11px">${time}</span>
+        </div>
+        <div class="note-body">${escapeHtml(n.body)}</div>
+        ${isJob ? `<div class="link" data-open-job-note="${n.job_id}" style="font-size:12px;margin-top:4px">View Job #${n.job_id} →</div>` : ''}
+        <div class="note-actions">
+          <span class="link" data-edit-note="${n.id}">Edit</span>
+          <span class="link" data-del-note="${n.id}" style="color:var(--red)">Delete</span>
+        </div>
+      </div>`;
+  }
+
+  async function loadCpNotes(contactId) {
+    const box = document.getElementById('cpNotesList');
+    try {
+      const { notes } = await api(`/contacts/${contactId}/notes`);
+      if (!notes.length) {
+        box.innerHTML = '<div class="muted" style="font-size:13px">No notes yet.</div>';
+        return;
+      }
+      box.innerHTML = notes.map(renderNoteItem).join('');
+      box.querySelectorAll('[data-open-job-note]').forEach((el) => {
+        el.addEventListener('click', () => openJobDetail(el.dataset.openJobNote));
+      });
+      box.querySelectorAll('[data-edit-note]').forEach((el) => {
+        el.addEventListener('click', () => startEditCpNote(el.dataset.editNote, notes));
+      });
+      box.querySelectorAll('[data-del-note]').forEach((el) => {
+        el.addEventListener('click', () => deleteCpNote(el.dataset.delNote));
+      });
+    } catch (err) {
+      box.innerHTML = `<div class="muted">${err.message}</div>`;
+    }
+  }
+
+  let cpEditingNoteId = null;
+
+  document.getElementById('cpAddNoteBtn').addEventListener('click', () => {
+    cpEditingNoteId = null;
+    document.getElementById('cpNoteInput').value = '';
+    document.getElementById('cpNoteForm').style.display = 'block';
+  });
+
+  function startEditCpNote(id, notes) {
+    const note = notes.find((n) => n.id === id);
+    if (!note) return;
+    cpEditingNoteId = id;
+    document.getElementById('cpNoteInput').value = note.body;
+    document.getElementById('cpNoteForm').style.display = 'block';
+  }
+
+  document.getElementById('cpNoteCancel').addEventListener('click', () => {
+    document.getElementById('cpNoteForm').style.display = 'none';
+  });
+
+  document.getElementById('cpNoteSave').addEventListener('click', async () => {
+    const body = document.getElementById('cpNoteInput').value.trim();
+    if (!body) return toast('Note can\'t be empty.', true);
+    try {
+      let warning;
+      if (cpEditingNoteId) {
+        ({ warning } = await api(`/notes/${cpEditingNoteId}`, { method: 'PUT', body: JSON.stringify({ body }) }));
+      } else {
+        ({ warning } = await api(`/contacts/${cpContactId}/notes`, { method: 'POST', body: JSON.stringify({ body }) }));
+      }
+      document.getElementById('cpNoteForm').style.display = 'none';
+      toast(warning || 'Note saved.', Boolean(warning));
+      loadCpNotes(cpContactId);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  async function deleteCpNote(id) {
+    if (!confirm('Delete this note?')) return;
+    try {
+      await api(`/notes/${id}`, { method: 'DELETE' });
+      toast('Note deleted.');
+      loadCpNotes(cpContactId);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
 
   // ---------- Jobs ----------
   let pipelinesCacheAll = [];
   let selectedPipelineId = null;
   let jobsCache = [];
+  let jobSearchQuery = '';
+  const jobFilters = { dateFrom: '', dateTo: '' };
+
+  function jobMatchesSearch(job, contact) {
+    if (!jobSearchQuery) return true;
+    const q = jobSearchQuery.toLowerCase();
+    const vehicle = [job.carMake, job.carModel].filter(Boolean).join(' ');
+    const haystack = [job.id, job.name, vehicle, job.damageDescription, contact ? contactName(contact) : '']
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(q);
+  }
+
+  function jobMatchesDateFilter(job) {
+    if (!jobFilters.dateFrom && !jobFilters.dateTo) return true;
+    if (!job.createdAt) return false;
+    const created = new Date(job.createdAt).getTime();
+    if (jobFilters.dateFrom && created < new Date(jobFilters.dateFrom + 'T00:00:00').getTime()) return false;
+    if (jobFilters.dateTo && created > new Date(jobFilters.dateTo + 'T23:59:59').getTime()) return false;
+    return true;
+  }
 
   async function loadJobsTab() {
     const board = document.getElementById('board');
@@ -602,6 +919,86 @@
     renderBoard();
   });
 
+  let jobSearchDebounce;
+  document.getElementById('jobSearch').addEventListener('input', (e) => {
+    clearTimeout(jobSearchDebounce);
+    jobSearchDebounce = setTimeout(() => {
+      jobSearchQuery = e.target.value.trim();
+      renderBoardFromCache();
+    }, 300);
+  });
+
+  const jobFilterBtn = document.getElementById('jobFilterBtn');
+  const jobFilterPanel = document.getElementById('jobFilterPanel');
+  jobFilterBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    jobFilterPanel.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!jobFilterPanel.contains(e.target) && e.target !== jobFilterBtn) jobFilterPanel.classList.remove('open');
+  });
+  jobFilterPanel.addEventListener('click', (e) => e.stopPropagation());
+
+  document.querySelectorAll('#jobDatePresets .fp-preset').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#jobDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      const { from, to } = presetRange(btn.dataset.preset);
+      document.getElementById('jobDateFrom').value = from;
+      document.getElementById('jobDateTo').value = to;
+    });
+  });
+  ['jobDateFrom', 'jobDateTo'].forEach((id) => {
+    document.getElementById(id).addEventListener('input', () => {
+      document.querySelectorAll('#jobDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+    });
+  });
+
+  function renderJobFilterChips() {
+    const row = document.getElementById('jobFilterChips');
+    const chips = [];
+    if (jobFilters.dateFrom || jobFilters.dateTo) {
+      const label = `Created: ${jobFilters.dateFrom || '…'} → ${jobFilters.dateTo || '…'}`;
+      chips.push({ label, onRemove: () => { jobFilters.dateFrom = ''; jobFilters.dateTo = ''; syncJobFilterUI(); applyJobFilters(); } });
+    }
+    row.innerHTML = '';
+    chips.forEach((c) => {
+      const span = document.createElement('span');
+      span.className = 'fchip';
+      span.innerHTML = `${c.label}<button type="button">×</button>`;
+      span.querySelector('button').addEventListener('click', c.onRemove);
+      row.appendChild(span);
+    });
+    const countEl = document.getElementById('jobFilterCount');
+    countEl.textContent = chips.length ? `(${chips.length})` : '';
+  }
+
+  function syncJobFilterUI() {
+    document.getElementById('jobDateFrom').value = jobFilters.dateFrom;
+    document.getElementById('jobDateTo').value = jobFilters.dateTo;
+    document.querySelectorAll('#jobDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+  }
+
+  function applyJobFilters() {
+    renderJobFilterChips();
+    renderBoardFromCache();
+  }
+
+  document.getElementById('jobFilterApply').addEventListener('click', () => {
+    jobFilters.dateFrom = document.getElementById('jobDateFrom').value;
+    jobFilters.dateTo = document.getElementById('jobDateTo').value;
+    jobFilterPanel.classList.remove('open');
+    applyJobFilters();
+  });
+
+  document.getElementById('jobFilterClear').addEventListener('click', () => {
+    jobFilters.dateFrom = '';
+    jobFilters.dateTo = '';
+    syncJobFilterUI();
+    jobFilterPanel.classList.remove('open');
+    applyJobFilters();
+  });
+
   async function renderBoard() {
     const jobsRes = await api('/jobs?pipelineId=' + encodeURIComponent(selectedPipelineId));
     jobsCache = jobsRes.jobs || [];
@@ -627,7 +1024,11 @@
       const col = document.createElement('div');
       col.className = 'col';
       col.dataset.stageId = stage.id;
-      const stageJobs = jobsCache.filter((j) => j.stageId === stage.id);
+      const stageJobs = jobsCache.filter((j) => {
+        if (j.stageId !== stage.id) return false;
+        const contact = contactsCache.find((c) => c.id === j.contactId);
+        return jobMatchesSearch(j, contact) && jobMatchesDateFilter(j);
+      });
       col.innerHTML = `<h4>${displayStageName(stage.name)}<span class="n">${stageJobs.length}</span></h4>`;
       stageJobs.forEach((job) => {
         const card = document.createElement('div');
@@ -673,6 +1074,7 @@
       toast('Job stage updated.');
       const idx = jobsCache.findIndex((j) => j.id === jobId);
       if (idx !== -1) jobsCache[idx] = { ...jobsCache[idx], ...job };
+      allJobsCache = null;
       renderBoardFromCache();
     } catch (err) {
       toast(err.message, true);
@@ -686,6 +1088,7 @@
       toast('Job status updated.');
       const idx = jobsCache.findIndex((j) => j.id === jobId);
       if (idx !== -1) jobsCache[idx] = { ...jobsCache[idx], ...job };
+      allJobsCache = null;
     } catch (err) {
       toast(err.message, true);
     }
@@ -728,22 +1131,34 @@
       .join('');
   }
 
+  let activeJobContactId = null;
+
   async function openJobDetail(jobId) {
-    const cached = jobsCache.find((j) => j.id === jobId);
-    if (!cached) return;
+    const cached = jobsCache.find((j) => j.id === jobId) || (allJobsCache || []).find((j) => j.id === jobId);
     activeJobId = jobId;
+    activeJobContactId = cached?.contactId || null;
 
     document.getElementById('jdCase').textContent = `Case #${jobId}`;
     const statusSel = document.getElementById('jdStatus');
-    statusSel.value = cached.status || 'open';
+    statusSel.value = cached?.status || 'open';
     statusSel.onchange = (e) => updateJobStatus(jobId, e.target.value);
     document.getElementById('jdUploadForm').style.display = 'none';
+    document.getElementById('jdNoteForm').style.display = 'none';
+    openModal('jobDetailModal');
 
     try {
       const { job } = await api('/jobs/' + jobId);
+      activeJobContactId = job.contactId;
       const idx = jobsCache.findIndex((j) => j.id === jobId);
       if (idx !== -1) jobsCache[idx] = { ...jobsCache[idx], ...job };
-      const contact = contactsCache.find((c) => c.id === job.contactId);
+      let contact = contactsCache.find((c) => c.id === job.contactId);
+      if (!contact && job.contactId) {
+        try {
+          contact = (await api('/contacts/' + job.contactId)).contact;
+        } catch {
+          contact = null;
+        }
+      }
 
       document.getElementById('jdContact').textContent = contact ? contactName(contact) : job.contactId || '';
       document.getElementById('jdVehicle').textContent = [job.carMake, job.carModel].filter(Boolean).join(' ') || '—';
@@ -755,7 +1170,98 @@
     }
 
     await loadJobFiles(jobId);
-    openModal('jobDetailModal');
+    await loadJobNotes(jobId);
+  }
+
+  document.getElementById('jdViewContact').addEventListener('click', () => {
+    if (!activeJobContactId) return toast('No contact linked to this job.', true);
+    closeModal('jobDetailModal');
+    switchTab('contacts');
+    showContactPage(activeJobContactId);
+  });
+
+  async function loadJobNotes(jobId) {
+    const box = document.getElementById('jdNotes');
+    box.innerHTML = '<div class="muted" style="font-size:13px">Loading…</div>';
+    try {
+      const { notes } = await api(`/jobs/${jobId}/notes`);
+      if (!notes.length) {
+        box.innerHTML = '<div class="muted" style="font-size:13px">No notes yet.</div>';
+        return;
+      }
+      box.innerHTML = notes
+        .map(
+          (n) => `
+        <div class="note-card" data-note="${n.id}">
+          <div class="note-head">
+            <span class="muted" style="font-size:11px">${new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <div class="note-body">${escapeHtml(n.body)}</div>
+          <div class="note-actions">
+            <span class="link" data-edit-jnote="${n.id}">Edit</span>
+            <span class="link" data-del-jnote="${n.id}" style="color:var(--red)">Delete</span>
+          </div>
+        </div>`
+        )
+        .join('');
+      box.querySelectorAll('[data-edit-jnote]').forEach((el) => {
+        el.addEventListener('click', () => startEditJobNote(el.dataset.editJnote, notes));
+      });
+      box.querySelectorAll('[data-del-jnote]').forEach((el) => {
+        el.addEventListener('click', () => deleteJobNote(el.dataset.delJnote));
+      });
+    } catch (err) {
+      box.innerHTML = `<div class="muted">${err.message}</div>`;
+    }
+  }
+
+  let jdEditingNoteId = null;
+
+  document.getElementById('jdAddNoteBtn').addEventListener('click', () => {
+    jdEditingNoteId = null;
+    document.getElementById('jdNoteInput').value = '';
+    document.getElementById('jdNoteForm').style.display = 'block';
+  });
+
+  function startEditJobNote(id, notes) {
+    const note = notes.find((n) => n.id === id);
+    if (!note) return;
+    jdEditingNoteId = id;
+    document.getElementById('jdNoteInput').value = note.body;
+    document.getElementById('jdNoteForm').style.display = 'block';
+  }
+
+  document.getElementById('jdNoteCancel').addEventListener('click', () => {
+    document.getElementById('jdNoteForm').style.display = 'none';
+  });
+
+  document.getElementById('jdNoteSave').addEventListener('click', async () => {
+    const body = document.getElementById('jdNoteInput').value.trim();
+    if (!body) return toast('Note can\'t be empty.', true);
+    try {
+      let warning;
+      if (jdEditingNoteId) {
+        ({ warning } = await api(`/notes/${jdEditingNoteId}`, { method: 'PUT', body: JSON.stringify({ body }) }));
+      } else {
+        ({ warning } = await api(`/jobs/${activeJobId}/notes`, { method: 'POST', body: JSON.stringify({ body }) }));
+      }
+      document.getElementById('jdNoteForm').style.display = 'none';
+      toast(warning || 'Note saved.', Boolean(warning));
+      loadJobNotes(activeJobId);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  async function deleteJobNote(id) {
+    if (!confirm('Delete this note?')) return;
+    try {
+      await api(`/notes/${id}`, { method: 'DELETE' });
+      toast('Note deleted.');
+      loadJobNotes(activeJobId);
+    } catch (err) {
+      toast(err.message, true);
+    }
   }
 
   async function loadJobFiles(jobId) {
@@ -827,41 +1333,6 @@
       toast(`${body.uploadedCount} file(s) uploaded.` + (body.warnings?.length ? ` ${body.warnings.length} warning(s).` : ''));
       document.getElementById('jdUploadForm').style.display = 'none';
       await loadJobFiles(activeJobId);
-    } catch (err) {
-      toast(err.message, true);
-    }
-  });
-
-  // ---------- Pipeline creation ----------
-  document.getElementById('newPipelineBtn').addEventListener('click', () => {
-    document.getElementById('pName').value = '';
-    const stagesBox = document.getElementById('pStages');
-    stagesBox.innerHTML = '';
-    ['Intake', 'In Progress', 'Done'].forEach(addStageRow);
-    openModal('pipelineModal');
-  });
-
-  function addStageRow(value = '') {
-    const row = document.createElement('div');
-    row.className = 'stagerow';
-    row.innerHTML = `<input value="${value}" placeholder="Stage name" /><button type="button">✕</button>`;
-    row.querySelector('button').addEventListener('click', () => row.remove());
-    document.getElementById('pStages').appendChild(row);
-  }
-
-  document.getElementById('pAddStage').addEventListener('click', () => addStageRow());
-
-  document.getElementById('pSave').addEventListener('click', async () => {
-    const name = document.getElementById('pName').value.trim();
-    const stageNames = [...document.querySelectorAll('#pStages input')].map((i) => i.value.trim()).filter(Boolean);
-    if (!name) return toast('Pipeline name is required.', true);
-    if (!stageNames.length) return toast('Add at least one stage.', true);
-    try {
-      await api('/pipelines', { method: 'POST', body: JSON.stringify({ name, stageNames }) });
-      closeModal('pipelineModal');
-      toast('Pipeline created.');
-      selectedPipelineId = null;
-      loadJobsTab();
     } catch (err) {
       toast(err.message, true);
     }
@@ -1314,8 +1785,9 @@
   // keeps the obvious mutating entry points from inviting a click that can
   // only fail.
   const GATED_ELEMENT_IDS = [
-    'addContactBtn', 'newPipelineBtn', 'newJobLink', 'jdUploadBtn', 'jdStatus',
-    'convoSendBtn', 'cSave', 'dSave', 'jdUploadSave',
+    'addContactBtn', 'newJobLink', 'jdUploadBtn', 'jdStatus',
+    'convoSendBtn', 'cSave', 'jdUploadSave', 'jdAddNoteBtn', 'jdNoteSave',
+    'cpSave', 'cpDelete', 'cpAddNoteBtn', 'cpNoteSave', 'cpConvoSendBtn', 'cpConvoStartBtn',
   ];
 
   function applyConnectionGate(connected) {

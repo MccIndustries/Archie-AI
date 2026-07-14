@@ -14,6 +14,7 @@ const slotsRoutes = require('./routes/slots');
 const reportsRoutes = require('./routes/reports');
 const conversationsRoutes = require('./routes/conversations');
 const adminRoutes = require('./routes/admin');
+const notesRoutes = require('./routes/notes');
 const webhooksRoutes = require('./routes/webhooks');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -32,6 +33,7 @@ app.use('/api/intake', intakeRoutes);
 app.use('/api/slots', slotsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/conversations', conversationsRoutes);
+app.use('/api/notes', notesRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
