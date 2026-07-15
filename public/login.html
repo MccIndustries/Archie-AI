@@ -8,29 +8,29 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
-    --bg:#f3f5f8; --card:#ffffff; --ink:#0f1b2d; --ink-soft:#5b6b80;
-    --line:#e7ecf2; --cyan-grad:linear-gradient(135deg,#37c0fb 0%,#1b9fe6 100%);
-    --cyan-deep:#1597dd; --red:#ef4444; --red-soft:#fdeaea;
+    --bg:#1C3A5C; --card:#ffffff; --ink:#16232f; --ink-soft:#5b6b80;
+    --line:#dfe3e8; --navy:#1C3A5C;
+    --red:#B8272A; --red-soft:#fbe9e9;
   }
-  *{box-sizing:border-box;margin:0;padding:0}
+  *{box-sizing:border-box;margin:0;padding:0;border-radius:0}
   body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);
-    min-height:100vh;display:grid;place-items:center}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:36px;
-    width:100%;max-width:360px;box-shadow:0 8px 40px rgba(16,27,45,.08)}
-  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:22px;margin-bottom:22px}
-  .mark{width:32px;height:32px;border-radius:9px;background:var(--cyan-grad);display:grid;place-items:center;color:#fff}
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .logo-wrap{margin-bottom:22px}
+  .logo-wrap img{max-width:220px;height:auto;display:block}
+  .card{background:var(--card);border:1px solid var(--line);padding:36px;
+    width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.3)}
   label{display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin:14px 0 6px}
-  input{width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--line);font-family:inherit;font-size:14px}
-  input:focus{outline:2px solid var(--cyan-deep);outline-offset:1px}
-  button{width:100%;margin-top:22px;padding:12px;border:none;border-radius:12px;background:var(--cyan-grad);
+  input{width:100%;padding:11px 13px;border:1px solid var(--line);font-family:inherit;font-size:14px}
+  input:focus{outline:2px solid var(--navy);outline-offset:1px}
+  button{width:100%;margin-top:22px;padding:12px;border:none;background:var(--navy);
     color:#fff;font-weight:700;font-size:14.5px;cursor:pointer;font-family:inherit}
   button:disabled{opacity:.6;cursor:default}
-  .err{margin-top:14px;background:var(--red-soft);color:var(--red);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;display:none}
+  .err{margin-top:14px;background:var(--red-soft);color:var(--red);padding:10px 12px;font-size:13px;font-weight:600;display:none}
 </style>
 </head>
 <body>
+  <div class="logo-wrap"><img src="/logo.png" alt="Collision Command" /><span id="brandName" style="display:none">Collision Command</span></div>
   <div class="card">
-    <div class="brand"><span class="mark"></span><span id="brandName">Collision Command</span></div>
     <form id="loginForm">
       <label for="email">Email</label>
       <input id="email" type="email" required autocomplete="username" />
@@ -41,7 +41,7 @@
     </form>
   </div>
 
-  <div style="position:fixed;bottom:6px;right:12px;font-size:9.5px;color:var(--ink-soft);opacity:.55">Crafted by <a href="https://autoloopers.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">AutoLoopers</a></div>
+  <div style="position:fixed;bottom:6px;right:12px;font-size:9.5px;color:rgba(255,255,255,.55)">Crafted by <a href="https://autoloopers.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">AutoLoopers</a></div>
 
 <script>
 (async function () {
