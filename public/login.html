@@ -60,7 +60,7 @@
 
   // Already signed in? Skip straight to the app.
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) window.location.href = '/index.html';
+  if (session) window.location.href = '/';
 
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -80,7 +80,7 @@
       btn.textContent = 'Sign in';
       return;
     }
-    window.location.href = '/index.html';
+    window.location.href = '/';
   });
 })();
 </script>

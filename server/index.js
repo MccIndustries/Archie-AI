@@ -36,6 +36,21 @@ app.use('/api/conversations', conversationsRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/admin', adminRoutes);
 
+// Clean URLs for the hand-typed/emailed pages -- the underlying files (kept
+// as .html on disk for express.static's own sake) stay reachable at their
+// old paths too, so links already baked into sent invite/impersonation
+// emails keep working.
+const PAGE_ROUTES = {
+  '/login': 'login.html',
+  '/admin': 'admin-login.html',
+  '/admin/dashboard': 'admin.html',
+  '/intake': 'intake.html',
+  '/set-password': 'set-password.html',
+};
+for (const [route, file] of Object.entries(PAGE_ROUTES)) {
+  app.get(route, (req, res) => res.sendFile(path.join(__dirname, '..', 'public', file)));
+}
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use(errorHandler);

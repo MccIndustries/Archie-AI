@@ -24,10 +24,10 @@
     if (res.status === 401 || res.status === 403) {
       // The cached local session looked valid but the server rejected it
       // (e.g. the account was deleted, or isn't an admin) -- sign out to
-      // clear it, otherwise admin-login.html's own local-only session check
-      // just bounces back here, forever.
+      // clear it, otherwise the admin login page's own local-only session
+      // check just bounces back here, forever.
       await supabase.auth.signOut();
-      window.location.href = '/admin-login.html';
+      window.location.href = '/admin';
       throw new Error('Session expired or not authorized');
     }
     if (!res.ok) {
@@ -242,13 +242,13 @@
     const { data } = await supabase.auth.getSession();
     session = data.session;
     if (!session || session.user.app_metadata?.role !== 'admin') {
-      window.location.href = '/admin-login.html';
+      window.location.href = '/admin';
       return;
     }
 
     document.getElementById('signOut').addEventListener('click', async () => {
       await supabase.auth.signOut();
-      window.location.href = '/admin-login.html';
+      window.location.href = '/admin';
     });
 
     loadClients();

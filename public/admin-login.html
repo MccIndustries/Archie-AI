@@ -61,7 +61,7 @@
   async function goIfAdmin(session, errBox) {
     if (!session) return false;
     if (session.user.app_metadata?.role === 'admin') {
-      window.location.href = '/admin.html';
+      window.location.href = '/admin/dashboard';
       return true;
     }
     // A real, valid login -- just not an admin account. Sign out rather

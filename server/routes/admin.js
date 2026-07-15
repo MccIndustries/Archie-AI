@@ -116,7 +116,7 @@ router.get('/clients/:id/users', async (req, res, next) => {
 // client (detectSessionInUrl, already relied on for invite links) pick up
 // a real session for that user. Note this replaces whatever session is in
 // the browser's local storage for this origin -- the admin will need to
-// log back in to admin.html afterward to return to the Admin portal.
+// log back in to /admin afterward to return to the Admin portal.
 router.post('/clients/:id/impersonate', async (req, res, next) => {
   try {
     const { data: list, error } = await getSupabase().auth.admin.listUsers();
@@ -132,7 +132,7 @@ router.post('/clients/:id/impersonate', async (req, res, next) => {
     const { data, error: linkErr } = await getSupabase().auth.admin.generateLink({
       type: 'magiclink',
       email: users[0].email,
-      options: { redirectTo: `${process.env.APP_BASE_URL}/index.html` },
+      options: { redirectTo: `${process.env.APP_BASE_URL}/` },
     });
     if (linkErr) throw linkErr;
     res.json({ actionLink: data.properties.action_link });

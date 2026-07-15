@@ -1,7 +1,7 @@
 const { getSupabase } = require('./supabase');
 
 // Creates a Supabase Auth user for this email and sends Supabase's built-in
-// invite email, which lands on our own set-password.html (customized in the
+// invite email, which lands on our own /set-password page (customized in the
 // Supabase dashboard's Email Templates). inviteUserByEmail doesn't accept
 // app_metadata directly -- confirmed live -- so the tag is applied in a
 // second call right after. Shared by client-login invites (tagged
@@ -9,7 +9,7 @@ const { getSupabase } = require('./supabase');
 // webhook.
 async function inviteUser({ email, appMetadata }) {
   const { data, error } = await getSupabase().auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.APP_BASE_URL}/set-password.html`,
+    redirectTo: `${process.env.APP_BASE_URL}/set-password`,
   });
   if (error) throw error;
   const { error: tagErr } = await getSupabase().auth.admin.updateUserById(data.user.id, {

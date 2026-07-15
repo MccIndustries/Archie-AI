@@ -26,10 +26,10 @@
     if (res.status === 401) {
       // The cached local session looked valid but the server rejected it
       // (e.g. the account was deleted) -- sign out to clear it, otherwise
-      // login.html's own local-only session check just bounces back here,
-      // forever.
+      // the login page's own local-only session check just bounces back
+      // here, forever.
       await supabase.auth.signOut();
-      window.location.href = '/login.html';
+      window.location.href = '/login';
       throw new Error('Session expired');
     }
     if (!res.ok) {
@@ -1843,14 +1843,14 @@
     const { data } = await supabase.auth.getSession();
     session = data.session;
     if (!session) {
-      window.location.href = '/login.html';
+      window.location.href = '/login';
       return;
     }
     document.getElementById('userEmail').textContent = session.user.email;
 
     document.getElementById('signOut').addEventListener('click', async () => {
       await supabase.auth.signOut();
-      window.location.href = '/login.html';
+      window.location.href = '/login';
     });
 
     try {

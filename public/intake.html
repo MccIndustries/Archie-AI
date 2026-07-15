@@ -100,7 +100,7 @@
       <div id="msg" class="msg"></div>
 
       <div class="actions">
-        <a href="/index.html" class="btn-secondary" style="display:inline-flex;align-items:center;justify-content:center">Cancel</a>
+        <a href="/" class="btn-secondary" style="display:inline-flex;align-items:center;justify-content:center">Cancel</a>
         <button type="submit" class="btn-primary" id="submitBtn">Create Job</button>
       </div>
     </form>
@@ -117,7 +117,7 @@
   }
   const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) { window.location.href = '/login.html'; return; }
+  if (!session) { window.location.href = '/login'; return; }
   const token = session.access_token;
 
   const api = async (path) => {
@@ -218,7 +218,7 @@
         (body.contactReused ? ' for an existing customer.' : '.') +
         (body.warnings?.length ? body.warnings.map((w) => `<span class="warn">⚠ ${w}</span>`).join('') : '');
       btn.textContent = 'Created ✓';
-      setTimeout(() => { window.location.href = '/index.html'; }, 1800);
+      setTimeout(() => { window.location.href = '/'; }, 1800);
     } catch (err) {
       msg.className = 'msg err';
       msg.textContent = err.message;
