@@ -219,6 +219,15 @@
   document.getElementById('cdSave').addEventListener('click', async () => {
     try {
       const tokenInput = document.getElementById('cdToken');
+      // GHL credentials without a confirmed "Repair Status" pipeline is
+      // exactly the broken half-connected state that caused a real
+      // production bug earlier -- block the save client-side too (the
+      // server enforces this regardless, in case this ever gets bypassed).
+      const hasLocationAndToken = document.getElementById('cdLocationId').value.trim() && tokenInput.value.trim();
+      const hasPipeline = document.getElementById('cdPipelineId').value.trim();
+      if (hasLocationAndToken && !hasPipeline) {
+        return toast('Fetch and confirm the "Repair Status" pipeline before saving.', true);
+      }
       const payload = {
         ghlLocationId: document.getElementById('cdLocationId').value.trim(),
         ghlCalendarId: document.getElementById('cdCalendarId').value.trim(),

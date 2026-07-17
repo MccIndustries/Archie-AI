@@ -91,6 +91,13 @@ router.get('/clients/:id', async (req, res, next) => {
 router.put('/clients/:id', async (req, res, next) => {
   const { name, ghlLocationId, ghlApiToken, ghlCalendarId, ghlPipelineId, notes } = req.body || {};
   try {
+    const { data: current, error: currentErr } = await getSupabase()
+      .from('clients')
+      .select('ghl_location_id, ghl_api_token, ghl_pipeline_id')
+      .eq('id', req.params.id)
+      .single();
+    if (currentErr) throw currentErr;
+
     const update = {};
     if (name !== undefined) update.name = name;
     if (ghlLocationId !== undefined) update.ghl_location_id = ghlLocationId;
@@ -98,6 +105,21 @@ router.put('/clients/:id', async (req, res, next) => {
     if (ghlCalendarId !== undefined) update.ghl_calendar_id = ghlCalendarId;
     if (ghlPipelineId !== undefined) update.ghl_pipeline_id = ghlPipelineId;
     if (notes !== undefined) update.notes = notes;
+
+    // Saving GHL credentials without a confirmed "Repair Status" pipeline
+    // is exactly the broken half-connected state that caused a real
+    // production bug (a client's ghl_pipeline_id ended up holding the
+    // pipeline's NAME instead of its ID) -- block the save server-side
+    // regardless of what the Admin UI sent, using the row's resulting
+    // state (already-saved values included) rather than just this request.
+    const resultingLocationId = update.ghl_location_id !== undefined ? update.ghl_location_id : current.ghl_location_id;
+    const resultingApiToken = update.ghl_api_token !== undefined ? update.ghl_api_token : current.ghl_api_token;
+    const resultingPipelineId = update.ghl_pipeline_id !== undefined ? update.ghl_pipeline_id : current.ghl_pipeline_id;
+    if (resultingLocationId && resultingApiToken && !resultingPipelineId) {
+      return res.status(400).json({
+        error: `Fetch and confirm the "${ghl.REPAIR_STATUS_PIPELINE_NAME}" pipeline before saving GHL credentials.`,
+      });
+    }
 
     const { data, error } = await getSupabase().from('clients').update(update).eq('id', req.params.id).select().single();
     if (error) throw error;
