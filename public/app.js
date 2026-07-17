@@ -1123,10 +1123,15 @@
         card.className = 'jobcard';
         card.draggable = true;
         card.dataset.jobId = job.id;
+        // job.customerName comes straight from GHL's opportunity response --
+        // more reliable than cross-referencing contactsCache, which is
+        // capped at a page of contacts and can miss one on larger accounts
+        // (falling back to a raw GHL id there looked exactly like a case #).
         const contact = contactsCache.find((c) => c.id === job.contactId);
+        const displayName = job.customerName || (contact ? contactName(contact) : null) || 'Unknown Contact';
         const vehicle = [job.carMake, job.carModel].filter(Boolean).join(' ');
         card.innerHTML = `
-          <div class="jn">${contact ? contactName(contact) : job.contactId || ''}</div>
+          <div class="jn">${displayName}</div>
           <div class="jc">${vehicle || job.name}</div>
           <div class="jval">Value: ${money(job.value)}</div>
           ${job.damageDescription ? `<div class="jd">${job.damageDescription}</div>` : ''}
