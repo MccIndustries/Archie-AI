@@ -885,6 +885,36 @@
   </div>
 </div>
 
+<!-- New Smart List modal -->
+<div class="overlay" id="smartListModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>New Smart List</h3>
+      <button type="button" class="modal-x" data-close="smartListModal" aria-label="Close">&times;</button>
+    </div>
+    <label>Name</label>
+    <input id="slName" placeholder="e.g. VIP Leads" />
+    <label>Tags</label>
+    <div id="slTagOptions" class="fp-tags"><span class="muted" style="font-size:12.5px">Loading…</span></div>
+    <label>Created</label>
+    <div class="fp-presets" id="slDatePresets">
+      <button type="button" class="fp-preset" data-preset="">Any time</button>
+      <button type="button" class="fp-preset" data-preset="today">Today</button>
+      <button type="button" class="fp-preset" data-preset="week">This week</button>
+      <button type="button" class="fp-preset" data-preset="month">This month</button>
+    </div>
+    <div class="fp-daterange">
+      <input type="date" id="slDateFrom" />
+      <span class="muted">to</span>
+      <input type="date" id="slDateTo" />
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" data-close="smartListModal">Cancel</button>
+      <button class="btn-primary" id="slSave">Save Smart List</button>
+    </div>
+  </div>
+</div>
+
 <!-- KPI Detail modal -->
 <div class="overlay" id="kpiDetailModal">
   <div class="modal" style="max-width:640px">

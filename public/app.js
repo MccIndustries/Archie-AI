@@ -617,16 +617,58 @@
   }
 
   document.getElementById('addSmartListBtn').addEventListener('click', async () => {
-    const name = prompt('Name this smart list:');
-    if (!name || !name.trim()) return;
+    document.getElementById('slName').value = '';
+    document.getElementById('slDateFrom').value = '';
+    document.getElementById('slDateTo').value = '';
+    document.querySelectorAll('#slDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+
+    const box = document.getElementById('slTagOptions');
+    box.innerHTML = '<span class="muted" style="font-size:12.5px">Loading…</span>';
+    openModal('smartListModal');
+    try {
+      await loadContactTags();
+      box.innerHTML = contactTagsCache.length
+        ? contactTagsCache.map((t) => `<span class="fp-tag-opt" data-tag="${t.name}">${t.name}</span>`).join('')
+        : '<span class="muted" style="font-size:12.5px">No tags yet.</span>';
+      box.querySelectorAll('.fp-tag-opt').forEach((el) => {
+        el.addEventListener('click', () => el.classList.toggle('sel'));
+      });
+    } catch (err) {
+      box.innerHTML = `<span class="muted" style="font-size:12.5px">${err.message}</span>`;
+    }
+  });
+
+  document.querySelectorAll('#slDatePresets .fp-preset').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#slDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      const { from, to } = presetRange(btn.dataset.preset);
+      document.getElementById('slDateFrom').value = from;
+      document.getElementById('slDateTo').value = to;
+    });
+  });
+  ['slDateFrom', 'slDateTo'].forEach((id) => {
+    document.getElementById(id).addEventListener('input', () => {
+      document.querySelectorAll('#slDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+    });
+  });
+
+  document.getElementById('slSave').addEventListener('click', async () => {
+    const name = document.getElementById('slName').value.trim();
+    if (!name) return toast('Name is required.', true);
+    const filters = {
+      tags: Array.from(document.querySelectorAll('#slTagOptions .fp-tag-opt.sel')).map((el) => el.dataset.tag),
+      dateFrom: document.getElementById('slDateFrom').value,
+      dateTo: document.getElementById('slDateTo').value,
+    };
     try {
       const { smartList } = await api('/contacts/smart-lists', {
         method: 'POST',
-        body: JSON.stringify({ name: name.trim(), filters: { tags: contactFilters.tags, dateFrom: contactFilters.dateFrom, dateTo: contactFilters.dateTo } }),
+        body: JSON.stringify({ name, filters }),
       });
       smartListsCache.push(smartList);
-      activeSmartListId = smartList.id;
-      renderSmartLists();
+      closeModal('smartListModal');
+      applySmartList(smartList.id);
       toast('Smart list saved.');
     } catch (err) {
       toast(err.message, true);
