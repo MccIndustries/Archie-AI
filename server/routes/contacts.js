@@ -156,6 +156,33 @@ router.get('/:id/notes', async (req, res, next) => {
   }
 });
 
+// GHL has no "list appointments for this contact" endpoint -- appointments
+// are only queryable per-calendar. Same wide window as the Calendar tab's
+// own per-calendar query (90 days back, a year forward), just fanned out
+// across every calendar and filtered down to this one contact.
+router.get('/:id/appointments', async (req, res, next) => {
+  try {
+    const contactId = req.params.id;
+    const calendars = await ghl.listCalendars();
+    const startTime = (Date.now() - 90 * 24 * 60 * 60 * 1000).toString();
+    const endTime = (Date.now() + 365 * 24 * 60 * 60 * 1000).toString();
+    const lists = await Promise.all(
+      calendars.map((c) =>
+        ghl.listAppointments({ calendarId: c.id, startTime, endTime }).then((events) =>
+          events.filter((e) => e.contactId === contactId).map((e) => ({ ...e, calendarName: c.name }))
+        )
+      )
+    );
+    const appointments = lists
+      .flat()
+      .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+      .map((e) => ({ id: e.id, title: e.title, calendarName: e.calendarName, startTime: e.startTime, endTime: e.endTime, status: e.appointmentStatus || e.status }));
+    res.json({ appointments });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/:id/notes', async (req, res, next) => {
   const body = (req.body?.body || '').trim();
   if (!body) return res.status(400).json({ error: 'body is required' });

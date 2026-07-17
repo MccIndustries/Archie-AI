@@ -361,15 +361,21 @@ async function ensureCategoryFields(category, count) {
       if (m) ids[Number(m[1]) - 1] = f.id;
     }
   }
+  // Tracked separately from `ids` -- the very first opportunity update that
+  // references a field id created moments ago in this same call can
+  // silently drop that value (confirmed live: GHL returns 200 but never
+  // actually sets it), so callers need to know which ids are this fresh.
+  const created = [];
   for (let i = 0; i < count; i++) {
     if (ids[i]) continue;
-    const created = await request('POST', `/locations/${locationId}/customFields`, {
+    const createdField = await request('POST', `/locations/${locationId}/customFields`, {
       body: { name: `${category} ${i + 1}`, dataType: 'FILE_UPLOAD', model: 'opportunity' },
     });
-    ids[i] = (created.customField || created).id;
+    ids[i] = (createdField.customField || createdField).id;
+    created.push(ids[i]);
   }
   categoryFieldsCache.set(cacheKey, ids);
-  return ids.slice(0, count);
+  return { ids: ids.slice(0, count), created };
 }
 
 // Assigns new files to the first slot(s) that are empty *on this specific
@@ -385,20 +391,49 @@ async function assignCategoryFiles(jobId, category, fileUrls) {
       .map((f) => f.id)
   );
 
-  let ids = await ensureCategoryFields(category, 1);
+  let { ids, created } = await ensureCategoryFields(category, 1);
+  const newFieldIds = new Set(created);
   const assignments = {};
   let cursor = 0;
   for (const url of fileUrls) {
     while (ids[cursor] && usedIds.has(ids[cursor])) cursor++;
     if (cursor >= ids.length) {
-      ids = await ensureCategoryFields(category, ids.length + 1);
+      const grown = await ensureCategoryFields(category, ids.length + 1);
+      ids = grown.ids;
+      grown.created.forEach((id) => newFieldIds.add(id));
     }
     assignments[ids[cursor]] = url;
     usedIds.add(ids[cursor]);
     cursor++;
   }
 
-  return updateJob(jobId, { photoFieldValues: assignments });
+  return updateJobFieldsWithNewFieldRetry(jobId, assignments, newFieldIds);
+}
+
+// GHL has a brief eventual-consistency window right after a custom field
+// definition is created: an opportunity update in that same window can
+// reference the brand-new field id and get a 200 back without the value
+// actually landing (confirmed live). Fields reused from cache/existing
+// definitions never hit this -- only ones created moments ago in this same
+// request -- so this only adds latency the very first time a category is
+// ever used in a location, not on every upload.
+async function updateJobFieldsWithNewFieldRetry(jobId, photoFieldValues, newFieldIds) {
+  const result = await updateJob(jobId, { photoFieldValues });
+  if (!newFieldIds.size) return result;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const raw = await getJobRaw(jobId);
+    const valueById = new Map(
+      (raw.customFields || []).map((f) => [f.id, f.value ?? f.fieldValue ?? f.fieldValueString])
+    );
+    const stillMissing = [...newFieldIds].some(
+      (id) => photoFieldValues[id] !== undefined && valueById.get(id) == null
+    );
+    if (!stillMissing) return result;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await updateJob(jobId, { photoFieldValues });
+  }
+  return result;
 }
 
 // Uses the media library's own multipart upload -- separate from the

@@ -1690,6 +1690,16 @@
   let activeConvoId = null;
   let convoPollTimer = null;
   let phoneNumbersCache = [];
+  let convoFilterMode = 'unread';
+
+  document.getElementById('convoFilterTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.cf-tab');
+    if (!btn) return;
+    document.querySelectorAll('.cf-tab').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    convoFilterMode = btn.dataset.filter;
+    renderConvoList();
+  });
 
   function stopConvoPolling() {
     if (convoPollTimer) clearInterval(convoPollTimer);
@@ -1730,13 +1740,25 @@
     }
   }
 
+  function filteredConvos() {
+    const sorted = [...convosCache].sort((a, b) => new Date(b.lastMessageDate || 0) - new Date(a.lastMessageDate || 0));
+    if (convoFilterMode === 'unread') return sorted.filter((c) => c.unreadCount > 0);
+    if (convoFilterMode === 'recent') return sorted.slice(0, 20);
+    return sorted;
+  }
+
   function renderConvoList() {
     const box = document.getElementById('convoList');
+    const list = filteredConvos();
     if (!convosCache.length) {
       box.innerHTML = '<div class="muted" style="padding:12px">No conversations yet.</div>';
       return;
     }
-    box.innerHTML = convosCache
+    if (!list.length) {
+      box.innerHTML = `<div class="muted" style="padding:12px">No ${convoFilterMode} conversations.</div>`;
+      return;
+    }
+    box.innerHTML = list
       .map(
         (c) => `
       <div class="convo-item ${c.id === activeConvoId ? 'active' : ''}" data-convo="${c.id}">
@@ -1756,6 +1778,77 @@
     renderConvoList();
     document.getElementById('convoReplyBox').style.display = 'flex';
     await loadConvoMessages(id);
+    const convo = convosCache.find((c) => c.id === id);
+    loadConvoContactPanel(convo);
+  }
+
+  // ---------- Conversations: right-hand contact details panel ----------
+  async function loadConvoContactPanel(convo) {
+    const body = document.getElementById('convoContactBody');
+    const fullProfileLink = document.getElementById('convoViewFullProfile');
+    if (!convo?.contactId) {
+      body.innerHTML = '<div class="muted" style="font-size:13px">No contact linked to this conversation.</div>';
+      fullProfileLink.style.display = 'none';
+      return;
+    }
+    fullProfileLink.style.display = 'inline';
+    fullProfileLink.onclick = () => showContactPage(convo.contactId);
+    body.innerHTML = '<div class="loading">Loading…</div>';
+
+    try {
+      const [{ contact }, jobs, appts] = await Promise.all([
+        api('/contacts/' + convo.contactId),
+        ensureAllJobsCache().catch(() => []),
+        api('/contacts/' + convo.contactId + '/appointments').catch(() => ({ appointments: [] })),
+      ]);
+
+      const linkedJobs = jobs.filter((j) => j.contactId === convo.contactId);
+      const upcoming = (appts.appointments || []).filter((a) => new Date(a.startTime) >= new Date());
+
+      body.innerHTML = `
+        <div style="font-size:15px;font-weight:800;margin-bottom:10px">${contactName(contact)}</div>
+        <div class="fieldlist" style="margin-top:0">
+          <div class="fieldrow"><span class="fname">Email</span><span class="fval">${contact.email || '—'}</span></div>
+          <div class="fieldrow"><span class="fname">Phone</span><span class="fval">${contact.phone || '—'}</span></div>
+        </div>
+        ${(contact.tags || []).length ? `<div class="tagedit" style="margin-top:10px">${contact.tags.map((t) => `<span class="chip">${t}</span>`).join('')}</div>` : ''}
+
+        <h3 style="margin-top:20px;font-size:13px">Active Jobs</h3>
+        ${
+          linkedJobs.length
+            ? linkedJobs
+                .map(
+                  (j) => `
+          <div class="dash-row" data-open-job="${j.id}">
+            <div><div class="name">Case #${j.id}</div><div class="sub">${[j.carMake, j.carModel].filter(Boolean).join(' ') || j.name || ''}</div></div>
+            <span class="status-badge ${jobStatusBadgeClass(j.status)}">${displayStageName(j.stageName) || j.status}</span>
+          </div>`
+                )
+                .join('')
+            : '<div class="muted" style="font-size:13px">No jobs for this contact.</div>'
+        }
+
+        <h3 style="margin-top:20px;font-size:13px">Appointments</h3>
+        ${
+          upcoming.length
+            ? upcoming
+                .map(
+                  (a) => `
+          <div class="dash-row">
+            <div><div class="name">${a.title || 'Appointment'}</div><div class="sub">${a.calendarName || ''}</div></div>
+            <div class="sub">${new Date(a.startTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+          </div>`
+                )
+                .join('')
+            : '<div class="muted" style="font-size:13px">No upcoming appointments.</div>'
+        }
+      `;
+      body.querySelectorAll('[data-open-job]').forEach((el) => {
+        el.addEventListener('click', () => openJobDetail(el.dataset.openJob));
+      });
+    } catch (err) {
+      body.innerHTML = `<div class="muted">${err.message}</div>`;
+    }
   }
 
   async function loadConvoMessages(id, { silent } = {}) {
