@@ -63,11 +63,16 @@ router.get('/', async (req, res, next) => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
+    // Every tenant is locked to one pipeline (whichever GHL pipeline is
+    // named "Repair Status") -- without this filter, allJobs pulled in
+    // jobs from every pipeline in the account, so stage names from
+    // completely unrelated pipelines (e.g. a marketing/outreach pipeline's
+    // "Outreach Sent" stage) could show up in these KPIs.
     const [contactsCount, newLeadsToday, pipelines, allJobs, appointmentsBooked, upcomingAppointments] = await Promise.all([
       ghl.getContactsCount(),
       ghl.countContactsCreatedSince(startOfToday.toISOString()),
       ghl.listPipelines(),
-      ghl.listJobs({}),
+      ghl.listJobs({ pipelineId: req.tenant?.pipelineId }),
       getAppointmentsBooked({ calendarId, from, to }).catch(() => 0),
       getUpcomingAppointments().catch(() => []),
     ]);
@@ -116,9 +121,11 @@ router.get('/', async (req, res, next) => {
       }))
       .sort((a, b) => b.daysInStage - a.daysInStage);
 
-    // Stage breakdown for every pipeline (not just the default one), so the
-    // dashboard gives a full-account overview without switching pipelines.
-    const pipelineOverviews = pipelines.map((pipeline) => {
+    // Stage breakdown for just the connected "Repair Status" pipeline --
+    // this account may have other pipelines (marketing/outreach etc.) that
+    // have nothing to do with jobs and shouldn't appear here.
+    const repairStatusPipeline = pipelines.filter((p) => p.id === req.tenant?.pipelineId);
+    const pipelineOverviews = repairStatusPipeline.map((pipeline) => {
       const pipelineJobs = allJobs.filter((j) => j.pipelineId === pipeline.id);
       return {
         pipelineId: pipeline.id,
