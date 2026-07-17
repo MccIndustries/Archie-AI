@@ -63,6 +63,8 @@
   .kpi .val.attn{color:var(--red)}
   .kpi .val.placeholder{color:var(--ink-faint);font-size:20px}
   .kpi .lab{color:var(--ink-soft);font-size:13px;font-weight:600;margin-top:4px}
+  .kpi[data-kpi-card]{cursor:pointer;transition:box-shadow .15s,transform .15s}
+  .kpi[data-kpi-card]:hover{box-shadow:0 6px 18px rgba(20,30,45,.13);transform:translateY(-1px)}
 
   .card{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);padding:22px;margin-top:20px}
   .card h3{font-size:16px;font-weight:800;letter-spacing:-.2px;margin-bottom:14px}
@@ -104,6 +106,7 @@
 
   @media(max-width:1100px){ .kpis{grid-template-columns:repeat(2,1fr)} .dash-2col{grid-template-columns:1fr} }
 
+  .pipeline-label{font-weight:800;font-size:15px;color:var(--navy);white-space:nowrap}
   .toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap}
   .search{flex:1;max-width:340px;padding:10px 14px;border:1px solid var(--line);font-size:14px}
   .gbtn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;color:#fff;font-weight:700;font-size:14px;border:none;cursor:pointer;background:var(--navy)}
@@ -299,35 +302,35 @@
       </div>
     </div>
     <div class="kpis" id="kpis">
-      <div class="kpi">
+      <div class="kpi" data-kpi-card="revenueRecovered">
         <div class="ic green">$</div>
         <div class="val" data-kpi="revenueRecovered">–</div><div class="lab">Revenue Recovered</div>
       </div>
-      <div class="kpi">
+      <div class="kpi" data-kpi-card="jobsInShopValue">
         <div class="ic navy">▥</div>
         <div class="val" data-kpi="jobsInShopValue">–</div><div class="lab">Jobs In Shop Value</div>
       </div>
-      <div class="kpi">
+      <div class="kpi" data-kpi-card="openSupplements">
         <div class="ic amber">▧</div>
         <div class="val placeholder" data-kpi="openSupplements">—</div><div class="lab">Open Supplements</div>
       </div>
-      <div class="kpi">
+      <div class="kpi" data-kpi-card="closedThisMonth">
         <div class="ic green">✓</div>
         <div class="val" data-kpi="closedThisMonth">–</div><div class="lab">Closed This Month</div>
       </div>
-      <div class="kpi">
+      <div class="kpi" data-kpi-card="activeJobs">
         <div class="ic navy">▤</div>
         <div class="val" data-kpi="activeJobs">–</div><div class="lab">Active Jobs</div>
       </div>
-      <div class="kpi">
+      <div class="kpi" data-kpi-card="jobsNeedingAttention">
         <div class="ic red">⚠</div>
         <div class="val" data-kpi="jobsNeedingAttention">–</div><div class="lab">Jobs Needing Attention</div>
       </div>
-      <div class="kpi">
+      <div class="kpi" data-kpi-card="callsRecovered">
         <div class="ic amber">☎</div>
         <div class="val placeholder" data-kpi="callsRecovered">—</div><div class="lab">Calls Recovered</div>
       </div>
-      <div class="kpi">
+      <div class="kpi" data-kpi-card="reviewsGenerated">
         <div class="ic amber">★</div>
         <div class="val placeholder" data-kpi="reviewsGenerated">—</div><div class="lab">Reviews Generated</div>
       </div>
@@ -490,7 +493,7 @@
     <h1 class="page-title">Active Jobs</h1>
     <div class="toolbar">
       <div style="display:flex;gap:10px;flex:1;flex-wrap:wrap;align-items:center">
-        <select id="pipelineSelect" style="max-width:260px"></select>
+        <span class="pipeline-label" id="pipelineLabel"></span>
         <span class="muted" id="jobsCountBadge" style="font-size:13px;font-weight:700;white-space:nowrap"></span>
         <input class="search" id="jobSearch" placeholder="Search jobs…" />
         <select id="jobSortSelect" style="max-width:190px">
@@ -772,6 +775,17 @@
     <div id="adContact"></div>
     <div class="actions">
       <button class="btn-secondary" data-close="appointmentDetailModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Detail modal -->
+<div class="overlay" id="kpiDetailModal">
+  <div class="modal" style="max-width:640px">
+    <h3 id="kpiModalTitle">Detail</h3>
+    <div id="kpiModalBody"></div>
+    <div class="actions">
+      <button class="btn-secondary" data-close="kpiDetailModal">Close</button>
     </div>
   </div>
 </div>

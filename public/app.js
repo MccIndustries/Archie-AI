@@ -130,6 +130,74 @@
     return 'green';
   }
 
+  // ---------- KPI detail popups ----------
+  let lastDashboardData = null;
+
+  const KPI_CONFIG = {
+    revenueRecovered: { title: 'Revenue Recovered', dataKey: 'revenueJobs', emptyMsg: 'No revenue recovered in this range.' },
+    jobsInShopValue: { title: 'Jobs In Shop Value', dataKey: 'pipelineValueJobs', emptyMsg: 'No open jobs in this range.' },
+    closedThisMonth: { title: 'Closed This Month', dataKey: 'closedThisMonthJobs', emptyMsg: 'No jobs closed this month yet.' },
+    activeJobs: { title: 'Active Jobs', dataKey: 'activeJobsList', emptyMsg: 'No active jobs right now.' },
+    jobsNeedingAttention: { title: 'Jobs Needing Attention', dataKey: 'jobsNeedingAttention', emptyMsg: 'No jobs need attention.', daysCol: true },
+    openSupplements: { title: 'Open Supplements', placeholder: true },
+    callsRecovered: { title: 'Calls Recovered', placeholder: true },
+    reviewsGenerated: { title: 'Reviews Generated', placeholder: true },
+  };
+
+  function openKpiDetail(kpiKey) {
+    const cfg = KPI_CONFIG[kpiKey];
+    if (!cfg) return;
+    document.getElementById('kpiModalTitle').textContent = cfg.title;
+    const body = document.getElementById('kpiModalBody');
+
+    if (cfg.placeholder) {
+      body.innerHTML = '<div class="empty-panel">Not tracked yet for this account.</div>';
+      openModal('kpiDetailModal');
+      return;
+    }
+
+    const jobs = (lastDashboardData && lastDashboardData[cfg.dataKey]) || [];
+    if (!jobs.length) {
+      body.innerHTML = `<div class="empty-panel">${cfg.emptyMsg}</div>`;
+      openModal('kpiDetailModal');
+      return;
+    }
+
+    body.innerHTML = `
+      <table>
+        <thead><tr><th>Case #</th><th>Customer</th><th>Vehicle</th><th>Value</th><th>Stage</th>${cfg.daysCol ? '<th>Days In Stage</th>' : ''}</tr></thead>
+        <tbody>
+          ${jobs
+            .map(
+              (j) => `
+          <tr class="rowlink" data-open-kpi-job="${j.id}">
+            <td>#${j.id}</td>
+            <td>${j.customerName || '—'}</td>
+            <td>${[j.carMake, j.carModel].filter(Boolean).join(' ') || '—'}</td>
+            <td>${money(j.value)}</td>
+            <td>${displayStageName(j.stageName) || '—'}</td>
+            ${cfg.daysCol ? `<td><span class="days-chip ${daysChipClass(j.daysInStage)}">${j.daysInStage}d</span></td>` : ''}
+          </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    `;
+    body.querySelectorAll('[data-open-kpi-job]').forEach((row) => {
+      row.addEventListener('click', () => {
+        closeModal('kpiDetailModal');
+        openJobDetail(row.dataset.openKpiJob);
+      });
+    });
+    openModal('kpiDetailModal');
+  }
+
+  document.getElementById('kpis').addEventListener('click', (e) => {
+    const card = e.target.closest('.kpi[data-kpi-card]');
+    if (!card) return;
+    openKpiDetail(card.dataset.kpiCard);
+  });
+
   async function loadDashboard() {
     try {
       if (!dashPipelinesLoaded) {
@@ -147,6 +215,7 @@
       if (pipelineId) params.set('pipelineId', pipelineId);
 
       const dash = await api('/dashboard?' + params.toString());
+      lastDashboardData = dash;
       document.querySelector('[data-kpi="revenueRecovered"]').textContent = money(dash.totalRevenue);
       document.querySelector('[data-kpi="jobsInShopValue"]').textContent = money(dash.pipelineValue);
       document.querySelector('[data-kpi="closedThisMonth"]').textContent = money(dash.closedThisMonth);
@@ -899,6 +968,7 @@
   async function loadJobsTab() {
     const board = document.getElementById('board');
     board.innerHTML = '<div class="loading">Loading…</div>';
+    document.getElementById('jobsCountBadge').textContent = '';
     try {
       const needsContacts = !contactsCache.length;
       const [pipelinesRes, contactsRes] = await Promise.all([
@@ -908,27 +978,20 @@
       if (contactsRes) contactsCache = contactsRes.contacts || [];
       pipelinesCacheAll = pipelinesRes.pipelines || [];
 
-      const sel = document.getElementById('pipelineSelect');
+      const label = document.getElementById('pipelineLabel');
       if (!pipelinesCacheAll.length) {
-        sel.innerHTML = '<option value="">No pipelines yet</option>';
-        board.innerHTML = '<div class="muted">No pipelines exist yet — click "+ New Pipeline" to create one.</div>';
+        label.textContent = '';
+        board.innerHTML = '<div class="muted">No "Repair Status" pipeline connected — contact your agency.</div>';
         return;
       }
-      if (!selectedPipelineId || !pipelinesCacheAll.some((p) => p.id === selectedPipelineId)) {
-        selectedPipelineId = pipelinesCacheAll[0].id;
-      }
-      sel.innerHTML = pipelinesCacheAll.map((p) => `<option value="${p.id}" ${p.id === selectedPipelineId ? 'selected' : ''}>${p.name}</option>`).join('');
+      selectedPipelineId = pipelinesCacheAll[0].id;
+      label.textContent = pipelinesCacheAll[0].name;
 
       await renderBoard();
     } catch (err) {
       board.innerHTML = `<div class="muted">${err.message}</div>`;
     }
   }
-
-  document.getElementById('pipelineSelect').addEventListener('change', (e) => {
-    selectedPipelineId = e.target.value;
-    renderBoard();
-  });
 
   let jobSearchDebounce;
   document.getElementById('jobSearch').addEventListener('input', (e) => {

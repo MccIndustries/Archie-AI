@@ -212,12 +212,38 @@ async function listPipelines({ fresh = false } = {}) {
   return entry.data;
 }
 
+// Every tenant is strictly locked to whichever GHL pipeline is literally
+// named "Repair Status" -- matched once by the Admin portal when GHL
+// credentials are entered/refreshed (see findPipelineByName below) and
+// stored as clients.ghl_pipeline_id from then on. There is no per-tenant
+// override and no "first pipeline" fallback: a tenant with no matched
+// pipeline simply cannot create or see jobs.
+const REPAIR_STATUS_PIPELINE_NAME = 'Repair Status';
+
+function findPipelineByName(pipelines, name) {
+  const target = name.trim().toLowerCase();
+  return pipelines.find((p) => (p.name || '').trim().toLowerCase() === target) || null;
+}
+
+// Used by the Admin portal to look up a prospective client's pipelines
+// using credentials typed into the client form -- same ad-hoc-credentials
+// pattern as listCalendarsFor, since there's no saved/connected tenant yet.
+async function listPipelinesFor({ apiToken, locationId }) {
+  const res = await fetch(`${BASE_URL}/opportunities/pipelines?locationId=${encodeURIComponent(locationId)}`, {
+    headers: { Authorization: `Bearer ${apiToken}`, Version: API_VERSION, Accept: 'application/json' },
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new GhlApiError(data?.message || 'Failed to list pipelines', res.status, data);
+  return data.pipelines || [];
+}
+
 async function getDefaultPipelineId() {
   const tenant = tenantStorage.getStore();
-  if (tenant?.pipelineId) return tenant.pipelineId;
-  const pipelines = await listPipelines();
-  if (!pipelines.length) throw new GhlApiError('No pipelines found for this location', 500);
-  return pipelines[0].id;
+  if (!tenant?.pipelineId) {
+    throw new GhlApiError(`No "${REPAIR_STATUS_PIPELINE_NAME}" pipeline connected for this account.`, 409);
+  }
+  return tenant.pipelineId;
 }
 
 async function stageNameLookup() {
@@ -686,6 +712,9 @@ module.exports = {
   listTags,
   searchContacts,
   listPipelines,
+  listPipelinesFor,
+  findPipelineByName,
+  REPAIR_STATUS_PIPELINE_NAME,
   getDefaultPipelineId,
   createPipeline,
   ensureJobCustomFields,

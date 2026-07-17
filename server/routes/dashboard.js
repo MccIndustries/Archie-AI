@@ -72,20 +72,33 @@ router.get('/', async (req, res, next) => {
       getUpcomingAppointments().catch(() => []),
     ]);
 
-    const totalRevenue = allJobs
-      .filter((j) => j.status === 'won' && inRange(j.lastStatusChangeAt, from, to))
-      .reduce((sum, j) => sum + (Number(j.value) || 0), 0);
+    // Kept alongside each aggregate total -- lets the dashboard's KPI cards
+    // open a popup with the exact jobs that made up that number, instead of
+    // just showing a bare figure.
+    const toSummary = (j) => ({
+      id: j.id,
+      customerName: j.customerName,
+      carMake: j.carMake,
+      carModel: j.carModel,
+      value: j.value,
+      stageName: j.stageName,
+      status: j.status,
+    });
 
-    const pipelineValue = allJobs
-      .filter((j) => j.status === 'open' && inRange(j.createdAt, from, to))
-      .reduce((sum, j) => sum + (Number(j.value) || 0), 0);
+    const revenueJobs = allJobs.filter((j) => j.status === 'won' && inRange(j.lastStatusChangeAt, from, to));
+    const totalRevenue = revenueJobs.reduce((sum, j) => sum + (Number(j.value) || 0), 0);
+
+    const pipelineValueJobs = allJobs.filter((j) => j.status === 'open' && inRange(j.createdAt, from, to));
+    const pipelineValue = pipelineValueJobs.reduce((sum, j) => sum + (Number(j.value) || 0), 0);
 
     const monthStart = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
-    const closedThisMonth = allJobs
-      .filter((j) => j.status === 'won' && j.lastStatusChangeAt && new Date(j.lastStatusChangeAt) >= monthStart)
-      .reduce((sum, j) => sum + (Number(j.value) || 0), 0);
+    const closedThisMonthJobs = allJobs.filter(
+      (j) => j.status === 'won' && j.lastStatusChangeAt && new Date(j.lastStatusChangeAt) >= monthStart
+    );
+    const closedThisMonth = closedThisMonthJobs.reduce((sum, j) => sum + (Number(j.value) || 0), 0);
 
-    const activeJobsCount = allJobs.filter((j) => j.status === 'open').length;
+    const activeJobsList = allJobs.filter((j) => j.status === 'open');
+    const activeJobsCount = activeJobsList.length;
 
     const now = Date.now();
     const attentionPool = pipelineId ? allJobs.filter((j) => j.pipelineId === pipelineId) : allJobs;
@@ -134,6 +147,10 @@ router.get('/', async (req, res, next) => {
       upcomingAppointments,
       pipelineOverviews,
       jobsNeedingAttention,
+      revenueJobs: revenueJobs.map(toSummary),
+      pipelineValueJobs: pipelineValueJobs.map(toSummary),
+      closedThisMonthJobs: closedThisMonthJobs.map(toSummary),
+      activeJobsList: activeJobsList.map(toSummary),
     });
   } catch (err) {
     next(err);

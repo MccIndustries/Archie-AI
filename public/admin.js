@@ -114,6 +114,19 @@
         ? `<option value="${client.ghl_calendar_id}" selected>Current: ${client.ghl_calendar_id}</option>`
         : '<option value="">Enter Location ID + Token, then Fetch Calendars</option>';
       document.getElementById('cdPipelineId').value = client.ghl_pipeline_id || '';
+      const pipelineStatus = document.getElementById('cdPipelineStatus');
+      pipelineStatus.style.color = '';
+      if (client.ghl_pipeline_id) {
+        pipelineStatus.textContent = `✓ "Repair Status" pipeline connected`;
+        pipelineStatus.className = '';
+        pipelineStatus.style.color = 'var(--green)';
+      } else if (client.ghl_location_id && client.ghl_api_token) {
+        pipelineStatus.textContent = 'Not yet fetched — click "Fetch Pipelines"';
+        pipelineStatus.className = 'muted';
+      } else {
+        pipelineStatus.textContent = 'Enter Location ID + Token, then Fetch Calendars';
+        pipelineStatus.className = 'muted';
+      }
       document.getElementById('cdNotes').value = client.notes || '';
       document.getElementById('cdNewEmail').value = '';
       openModal('clientDetailModal');
@@ -158,7 +171,50 @@
       sel.innerHTML = '<option value="">Could not load calendars</option>';
       toast(err.message, true);
     }
+    // Same moment the VA has real credentials typed in -- also look up the
+    // "Repair Status" pipeline right away, rather than requiring a second,
+    // separate click for the common case.
+    fetchRepairStatusPipeline({ silent: true });
   });
+
+  // Every tenant is strictly locked to whichever GHL pipeline is literally
+  // named "Repair Status". `silent` skips the "enter creds first" toast when
+  // this runs automatically alongside Fetch Calendars.
+  async function fetchRepairStatusPipeline({ silent } = {}) {
+    const ghlLocationId = document.getElementById('cdLocationId').value.trim();
+    const tokenInput = document.getElementById('cdToken');
+    const ghlApiToken = tokenInput.value.trim();
+    const statusEl = document.getElementById('cdPipelineStatus');
+    if (!ghlLocationId || !ghlApiToken) {
+      if (!silent) toast('Enter both Location ID and Token first.', true);
+      return;
+    }
+    if (tokenInput.dataset.masked === 'true') {
+      if (!silent) toast('Click "Reveal" first, or paste in a new token.', true);
+      return;
+    }
+    statusEl.textContent = 'Looking up "Repair Status" pipeline…';
+    statusEl.className = 'muted';
+    statusEl.style.color = '';
+    try {
+      const { pipeline } = await api('/ghl/pipeline', {
+        method: 'POST',
+        body: JSON.stringify({ ghlLocationId, ghlApiToken }),
+      });
+      document.getElementById('cdPipelineId').value = pipeline.id;
+      statusEl.textContent = `✓ "Repair Status" pipeline connected`;
+      statusEl.className = '';
+      statusEl.style.color = 'var(--green)';
+    } catch (err) {
+      document.getElementById('cdPipelineId').value = '';
+      statusEl.textContent = err.message;
+      statusEl.className = '';
+      statusEl.style.color = 'var(--red)';
+      if (!silent) toast(err.message, true);
+    }
+  }
+
+  document.getElementById('cdFetchPipelineBtn').addEventListener('click', () => fetchRepairStatusPipeline());
 
   document.getElementById('cdSave').addEventListener('click', async () => {
     try {

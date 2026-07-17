@@ -22,13 +22,35 @@ router.post('/ghl/calendars', async (req, res, next) => {
   }
 });
 
+// Every tenant is strictly locked to whichever pipeline is literally named
+// "Repair Status" -- this looks it up using credentials typed into the
+// client form (same ad-hoc pattern as /ghl/calendars above), so the VA can
+// confirm/select it before saving, and re-check later via "Fetch Pipelines"
+// once it's been created in GHL.
+router.post('/ghl/pipeline', async (req, res, next) => {
+  const { ghlApiToken, ghlLocationId } = req.body || {};
+  if (!ghlApiToken || !ghlLocationId) {
+    return res.status(400).json({ error: 'ghlApiToken and ghlLocationId are required' });
+  }
+  try {
+    const pipelines = await ghl.listPipelinesFor({ apiToken: ghlApiToken, locationId: ghlLocationId });
+    const match = ghl.findPipelineByName(pipelines, ghl.REPAIR_STATUS_PIPELINE_NAME);
+    if (!match) {
+      return res.status(404).json({ error: `No pipeline found named "${ghl.REPAIR_STATUS_PIPELINE_NAME}".` });
+    }
+    res.json({ pipeline: { id: match.id, name: match.name } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 function maskToken(token) {
   if (!token) return null;
   return `${'•'.repeat(8)}${token.slice(-4)}`;
 }
 
 function isConnected(c) {
-  return Boolean(c.ghl_location_id && c.ghl_api_token && c.ghl_calendar_id);
+  return Boolean(c.ghl_location_id && c.ghl_api_token && c.ghl_calendar_id && c.ghl_pipeline_id);
 }
 
 router.get('/clients', async (req, res, next) => {

@@ -26,7 +26,9 @@ async function requireAuth(req, res, next) {
     .single();
   if (clientErr || !client) return res.status(403).json({ error: 'Client account not found.' });
 
-  const connected = Boolean(client.ghl_location_id && client.ghl_api_token && client.ghl_calendar_id);
+  const connected = Boolean(
+    client.ghl_location_id && client.ghl_api_token && client.ghl_calendar_id && client.ghl_pipeline_id
+  );
 
   req.user = { id: data.user.id, email: data.user.email };
   req.tenant = {

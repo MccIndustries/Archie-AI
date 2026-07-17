@@ -129,7 +129,12 @@
     <button type="button" class="btn-secondary" id="cdFetchCalendarsBtn" style="margin-top:10px">Fetch Calendars</button>
     <label>GHL Calendar <span class="muted" style="font-weight:500">— used for new job appointments</span></label>
     <select id="cdCalendarId"><option value="">Enter Location ID + Token, then Fetch Calendars</option></select>
-    <label>GHL Pipeline ID (optional)</label><input id="cdPipelineId" placeholder="Defaults to first pipeline if blank" />
+    <label>Repair Status Pipeline</label>
+    <div class="token-row">
+      <div id="cdPipelineStatus" class="muted" style="flex:1;font-size:13.5px;font-weight:600">Enter Location ID + Token, then Fetch Calendars</div>
+      <button type="button" class="btn-secondary" id="cdFetchPipelineBtn">Fetch Pipelines</button>
+    </div>
+    <input type="hidden" id="cdPipelineId" />
     <label>Notes</label><textarea id="cdNotes" rows="2"></textarea>
     <div class="actions">
       <button class="btn-danger" id="cdDelete">Delete Client</button>

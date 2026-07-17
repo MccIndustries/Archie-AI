@@ -7,10 +7,17 @@ const requireConnected = require('../middleware/requireConnected');
 const router = express.Router();
 router.use(requireAuth, requireConnected);
 
+// Every tenant is strictly locked to one pipeline (whichever GHL pipeline
+// is named "Repair Status", matched by the Admin portal and stored as
+// tenant.pipelineId) -- this returns just that one pipeline, not every
+// pipeline in the GHL account, so every caller (Active Jobs board,
+// Dashboard's pipeline filter, Monthly Report) only ever shows the one.
 router.get('/', async (req, res, next) => {
   try {
+    if (!req.tenant?.pipelineId) return res.json({ pipelines: [] });
     const pipelines = await ghl.listPipelines({ fresh: req.query.fresh === 'true' });
-    res.json({ pipelines });
+    const match = pipelines.find((p) => p.id === req.tenant.pipelineId);
+    res.json({ pipelines: match ? [match] : [] });
   } catch (err) {
     next(err);
   }
