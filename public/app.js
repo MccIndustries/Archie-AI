@@ -59,7 +59,7 @@
     document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
     document.getElementById('tab-' + tab).classList.add('active');
     if (tab === 'dashboard') loadDashboard();
-    if (tab === 'contacts') { loadContactTags(); loadContacts(); }
+    if (tab === 'contacts') { loadContactTags(); loadContacts(); loadSmartLists(); }
     if (tab === 'jobs') loadJobsTab();
     if (tab === 'calendar') loadCalendarTab();
     if (tab === 'reporting') loadReportingTab();
@@ -341,7 +341,11 @@
     if (query !== undefined) lastContactQuery = query;
     selectedContactIds.clear();
     const body = document.getElementById('contactsBody');
-    body.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+    await ensureContactFieldDefs();
+    renderContactsHead();
+    const cols = contactColumnDefs();
+    const totalCols = 2 + cols.length;
+    body.innerHTML = `<tr><td colspan="${totalCols}" class="loading">Loading…</td></tr>`;
     try {
       const params = new URLSearchParams();
       if (lastContactQuery) params.set('query', lastContactQuery);
@@ -349,9 +353,10 @@
       if (contactFilters.dateFrom) params.set('dateFrom', contactFilters.dateFrom);
       if (contactFilters.dateTo) params.set('dateTo', contactFilters.dateTo);
       const qs = params.toString();
+      const needsJobs = cols.some((c) => c.key === 'activeJobs');
       const [data, jobs] = await Promise.all([
         api('/contacts' + (qs ? `?${qs}` : '')),
-        ensureAllJobsCache().catch(() => []),
+        needsJobs ? ensureAllJobsCache().catch(() => []) : Promise.resolve([]),
       ]);
       contactsCache = data.contacts || [];
       const activeJobCounts = new Map();
@@ -362,19 +367,29 @@
       body.innerHTML = '';
       updateDeleteContactsUI();
       if (!contactsCache.length) {
-        body.innerHTML = '<tr><td colspan="6" class="muted">No contacts found.</td></tr>';
+        body.innerHTML = `<tr><td colspan="${totalCols}" class="muted">No contacts found.</td></tr>`;
         return;
       }
       contactsCache.forEach((c) => {
         const tr = document.createElement('tr');
         tr.className = 'rowlink';
+        const cellsHtml = cols
+          .map((col) => {
+            if (col.key === 'email') return `<td>${c.email || '<span class="muted">—</span>'}</td>`;
+            if (col.key === 'phone') return `<td>${c.phone || '<span class="muted">—</span>'}</td>`;
+            if (col.key === 'tags') return `<td>${(c.tags || []).map((t) => `<span class="chip">${t}</span>`).join('') || '<span class="muted">—</span>'}</td>`;
+            if (col.key === 'activeJobs') return `<td>${activeJobCounts.get(c.id) || 0}</td>`;
+            if (col.custom) {
+              const val = getContactFieldValue(c, col.fieldId);
+              return `<td>${val != null && val !== '' ? escapeHtml(String(val)) : '<span class="muted">—</span>'}</td>`;
+            }
+            return '<td>—</td>';
+          })
+          .join('');
         tr.innerHTML = `
           <td><input type="checkbox" class="contact-check" data-id="${c.id}" /></td>
           <td>${contactName(c)}</td>
-          <td>${c.email || '<span class="muted">—</span>'}</td>
-          <td>${c.phone || '<span class="muted">—</span>'}</td>
-          <td>${(c.tags || []).map((t) => `<span class="chip">${t}</span>`).join('') || '<span class="muted">—</span>'}</td>
-          <td>${activeJobCounts.get(c.id) || 0}</td>
+          ${cellsHtml}
         `;
         tr.addEventListener('click', (e) => {
           if (e.target.classList.contains('contact-check')) return;
@@ -388,7 +403,7 @@
         body.appendChild(tr);
       });
     } catch (err) {
-      body.innerHTML = `<tr><td colspan="6">${err.message}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="${totalCols}">${err.message}</td></tr>`;
     }
   }
 
@@ -469,9 +484,9 @@
   });
   filterPanel.addEventListener('click', (e) => e.stopPropagation());
 
-  document.querySelectorAll('.fp-preset').forEach((btn) => {
+  document.querySelectorAll('#contactDatePresets .fp-preset').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.fp-preset').forEach((b) => b.classList.remove('sel'));
+      document.querySelectorAll('#contactDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
       btn.classList.add('sel');
       const { from, to } = presetRange(btn.dataset.preset);
       document.getElementById('contactDateFrom').value = from;
@@ -480,7 +495,7 @@
   });
   ['contactDateFrom', 'contactDateTo'].forEach((id) => {
     document.getElementById(id).addEventListener('input', () => {
-      document.querySelectorAll('.fp-preset').forEach((b) => b.classList.remove('sel'));
+      document.querySelectorAll('#contactDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
     });
   });
 
@@ -507,12 +522,12 @@
   }
 
   function syncFilterUI() {
-    document.querySelectorAll('.fp-tag-opt').forEach((el) => {
+    document.querySelectorAll('#contactTagOptions .fp-tag-opt').forEach((el) => {
       el.classList.toggle('sel', contactFilters.tags.includes(el.dataset.tag));
     });
     document.getElementById('contactDateFrom').value = contactFilters.dateFrom;
     document.getElementById('contactDateTo').value = contactFilters.dateTo;
-    document.querySelectorAll('.fp-preset').forEach((b) => b.classList.remove('sel'));
+    document.querySelectorAll('#contactDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
   }
 
   function applyContactFilters() {
@@ -521,7 +536,7 @@
   }
 
   document.getElementById('contactFilterApply').addEventListener('click', () => {
-    contactFilters.tags = Array.from(document.querySelectorAll('.fp-tag-opt.sel')).map((el) => el.dataset.tag);
+    contactFilters.tags = Array.from(document.querySelectorAll('#contactTagOptions .fp-tag-opt.sel')).map((el) => el.dataset.tag);
     contactFilters.dateFrom = document.getElementById('contactDateFrom').value;
     contactFilters.dateTo = document.getElementById('contactDateTo').value;
     filterPanel.classList.remove('open');
@@ -535,6 +550,212 @@
     syncFilterUI();
     filterPanel.classList.remove('open');
     applyContactFilters();
+  });
+
+  // ---------- Smart Lists ----------
+  let smartListsCache = [];
+  let activeSmartListId = null;
+
+  async function loadSmartLists() {
+    try {
+      const { smartLists } = await api('/contacts/smart-lists');
+      smartListsCache = smartLists || [];
+      renderSmartLists();
+    } catch {
+      // Non-critical -- the "All" pill and manual filters still work fine
+      // even if this fails to load.
+    }
+  }
+
+  function renderSmartLists() {
+    const row = document.getElementById('smartListRow');
+    const addBtn = document.getElementById('addSmartListBtn');
+    row.querySelectorAll('.sl-pill:not(.sl-add):not([data-smartlist=""])').forEach((el) => el.remove());
+    smartListsCache.forEach((sl) => {
+      const pill = document.createElement('span');
+      pill.className = 'sl-pill' + (activeSmartListId === sl.id ? ' active' : '');
+      pill.dataset.smartlistId = sl.id;
+      pill.innerHTML = `<span data-apply="${sl.id}">${sl.name}</span>` +
+        (activeSmartListId === sl.id
+          ? `<span class="sl-icon" data-rename="${sl.id}" title="Rename">✎</span><span class="sl-icon" data-delete="${sl.id}" title="Delete">×</span>`
+          : '');
+      row.insertBefore(pill, addBtn);
+    });
+    row.querySelectorAll('[data-apply]').forEach((el) => {
+      el.addEventListener('click', () => applySmartList(el.dataset.apply));
+    });
+    row.querySelectorAll('[data-rename]').forEach((el) => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); renameSmartList(el.dataset.rename); });
+    });
+    row.querySelectorAll('[data-delete]').forEach((el) => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); deleteSmartList(el.dataset.delete); });
+    });
+  }
+
+  document.getElementById('smartListRow').addEventListener('click', (e) => {
+    if (e.target.dataset.smartlist === '') applySmartList(null);
+  });
+
+  function applySmartList(id) {
+    activeSmartListId = id;
+    document.querySelectorAll('.sl-pill').forEach((el) => el.classList.remove('active'));
+    if (id === null) {
+      document.querySelector('.sl-pill[data-smartlist=""]').classList.add('active');
+      contactFilters.tags = [];
+      contactFilters.dateFrom = '';
+      contactFilters.dateTo = '';
+    } else {
+      const sl = smartListsCache.find((s) => s.id === id);
+      if (!sl) return;
+      contactFilters.tags = sl.filters?.tags || [];
+      contactFilters.dateFrom = sl.filters?.dateFrom || '';
+      contactFilters.dateTo = sl.filters?.dateTo || '';
+    }
+    renderSmartLists();
+    syncFilterUI();
+    applyContactFilters();
+  }
+
+  document.getElementById('addSmartListBtn').addEventListener('click', async () => {
+    const name = prompt('Name this smart list:');
+    if (!name || !name.trim()) return;
+    try {
+      const { smartList } = await api('/contacts/smart-lists', {
+        method: 'POST',
+        body: JSON.stringify({ name: name.trim(), filters: { tags: contactFilters.tags, dateFrom: contactFilters.dateFrom, dateTo: contactFilters.dateTo } }),
+      });
+      smartListsCache.push(smartList);
+      activeSmartListId = smartList.id;
+      renderSmartLists();
+      toast('Smart list saved.');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  async function renameSmartList(id) {
+    const sl = smartListsCache.find((s) => s.id === id);
+    if (!sl) return;
+    const name = prompt('Rename smart list:', sl.name);
+    if (!name || !name.trim() || name.trim() === sl.name) return;
+    try {
+      const { smartList } = await api(`/contacts/smart-lists/${id}`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
+      const idx = smartListsCache.findIndex((s) => s.id === id);
+      if (idx !== -1) smartListsCache[idx] = smartList;
+      renderSmartLists();
+      toast('Smart list renamed.');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function deleteSmartList(id) {
+    if (!confirm('Delete this smart list? Its saved filters (not the contacts) will be removed.')) return;
+    try {
+      await api(`/contacts/smart-lists/${id}`, { method: 'DELETE' });
+      smartListsCache = smartListsCache.filter((s) => s.id !== id);
+      if (activeSmartListId === id) applySmartList(null);
+      else renderSmartLists();
+      toast('Smart list deleted.');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // ---------- Manage Fields (which columns show in the Contacts table) ----------
+  // Persisted per-browser via localStorage -- a display preference, not
+  // account data, so this doesn't need a server round trip or Supabase table.
+  const CONTACT_COLUMNS_KEY = 'flowsuite.contactColumns';
+  const CONTACT_FIXED_FIELDS = [
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'tags', label: 'Tags' },
+    { key: 'activeJobs', label: 'Active Jobs' },
+  ];
+  let contactColumns = null;
+  let contactFieldDefsCache = null;
+
+  function loadContactColumns() {
+    if (contactColumns) return contactColumns;
+    try {
+      const stored = JSON.parse(localStorage.getItem(CONTACT_COLUMNS_KEY) || 'null');
+      contactColumns = Array.isArray(stored) ? stored : CONTACT_FIXED_FIELDS.map((f) => f.key);
+    } catch {
+      contactColumns = CONTACT_FIXED_FIELDS.map((f) => f.key);
+    }
+    return contactColumns;
+  }
+
+  async function ensureContactFieldDefs() {
+    if (contactFieldDefsCache) return contactFieldDefsCache;
+    try {
+      const { fieldDefs } = await api('/contacts/field-defs');
+      contactFieldDefsCache = fieldDefs || [];
+    } catch {
+      contactFieldDefsCache = [];
+    }
+    return contactFieldDefsCache;
+  }
+
+  function contactColumnDefs() {
+    const active = loadContactColumns();
+    const fixed = CONTACT_FIXED_FIELDS.filter((f) => active.includes(f.key));
+    const custom = (contactFieldDefsCache || [])
+      .filter((f) => active.includes('cf_' + f.id))
+      .map((f) => ({ key: 'cf_' + f.id, label: f.name, custom: true, fieldId: f.id }));
+    return [...fixed, ...custom];
+  }
+
+  function getContactFieldValue(contact, fieldId) {
+    const f = (contact.customFields || []).find((cf) => cf.id === fieldId);
+    if (!f) return null;
+    let val = f.value ?? f.fieldValue ?? f.fieldValueString ?? f.fieldValueNumber ?? null;
+    if (Array.isArray(val)) val = val.join(', ');
+    return val;
+  }
+
+  function renderContactsHead() {
+    const tr = document.getElementById('contactsHeadRow');
+    tr.querySelectorAll('[data-dyn]').forEach((el) => el.remove());
+    contactColumnDefs().forEach((c) => {
+      const th = document.createElement('th');
+      th.textContent = c.label;
+      th.dataset.dyn = '1';
+      tr.appendChild(th);
+    });
+  }
+
+  document.getElementById('manageFieldsBtn').addEventListener('click', async () => {
+    const body = document.getElementById('manageFieldsBody');
+    body.innerHTML = '<div class="loading">Loading…</div>';
+    openModal('manageFieldsModal');
+    await ensureContactFieldDefs();
+    const active = loadContactColumns();
+    const rows = [
+      { key: 'name', label: 'Contact Name', locked: true },
+      ...CONTACT_FIXED_FIELDS,
+      ...(contactFieldDefsCache || []).map((f) => ({ key: 'cf_' + f.id, label: f.name })),
+    ];
+    body.innerHTML = rows
+      .map(
+        (f) => `
+      <label style="display:flex;align-items:center;gap:10px;margin:0 0 10px;font-weight:600;font-size:13.5px;color:var(--ink)">
+        <input type="checkbox" data-field="${f.key}" ${f.locked || active.includes(f.key) ? 'checked' : ''} ${f.locked ? 'disabled' : ''} />
+        ${f.label}
+      </label>`
+      )
+      .join('');
+  });
+
+  document.getElementById('manageFieldsApply').addEventListener('click', () => {
+    const checked = Array.from(document.querySelectorAll('#manageFieldsBody input[type=checkbox]:checked'))
+      .map((el) => el.dataset.field)
+      .filter((k) => k !== 'name');
+    contactColumns = checked;
+    localStorage.setItem(CONTACT_COLUMNS_KEY, JSON.stringify(checked));
+    closeModal('manageFieldsModal');
+    renderContactsHead();
+    loadContacts(lastContactQuery);
   });
 
   document.getElementById('addContactBtn').addEventListener('click', () => {
@@ -1698,6 +1919,8 @@
   let convoPollTimer = null;
   let phoneNumbersCache = [];
   let convoFilterMode = 'unread';
+  let convoSortOrder = 'latest';
+  const convoFilters = { dateFrom: '', dateTo: '', tags: [], direction: '' };
 
   document.getElementById('convoFilterTabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.cf-tab');
@@ -1705,6 +1928,113 @@
     document.querySelectorAll('.cf-tab').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     convoFilterMode = btn.dataset.filter;
+    renderConvoList();
+  });
+
+  document.getElementById('convoSortSelect').addEventListener('change', (e) => {
+    convoSortOrder = e.target.value;
+    renderConvoList();
+  });
+
+  // ---------- Conversations: filters panel ----------
+  const convoFilterBtn = document.getElementById('convoFilterBtn');
+  const convoFilterPanel = document.getElementById('convoFilterPanel');
+  convoFilterBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Tags are drawn from whatever's already loaded in convosCache -- no
+    // separate endpoint needed, since every conversation already carries
+    // its contact's tags.
+    const allTags = new Set();
+    convosCache.forEach((c) => (c.tags || []).forEach((t) => allTags.add(t)));
+    const box = document.getElementById('convoTagOptions');
+    box.innerHTML = allTags.size
+      ? [...allTags].map((t) => `<span class="fp-tag-opt${convoFilters.tags.includes(t) ? ' sel' : ''}" data-tag="${t}">${t}</span>`).join('')
+      : '<span class="muted" style="font-size:12.5px">No tags yet.</span>';
+    box.querySelectorAll('.fp-tag-opt').forEach((el) => {
+      el.addEventListener('click', () => el.classList.toggle('sel'));
+    });
+    convoFilterPanel.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!convoFilterPanel.contains(e.target) && e.target !== convoFilterBtn) convoFilterPanel.classList.remove('open');
+  });
+  convoFilterPanel.addEventListener('click', (e) => e.stopPropagation());
+
+  document.querySelectorAll('#convoDatePresets .fp-preset').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#convoDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      const { from, to } = presetRange(btn.dataset.preset);
+      document.getElementById('convoDateFrom').value = from;
+      document.getElementById('convoDateTo').value = to;
+    });
+  });
+  ['convoDateFrom', 'convoDateTo'].forEach((id) => {
+    document.getElementById(id).addEventListener('input', () => {
+      document.querySelectorAll('#convoDatePresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+    });
+  });
+
+  let convoDirectionChoice = '';
+  document.querySelectorAll('#convoDirectionPresets .fp-preset').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#convoDirectionPresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      convoDirectionChoice = btn.dataset.direction;
+    });
+  });
+
+  function renderConvoFilterChips() {
+    const row = document.getElementById('convoFilterChips');
+    const chips = [];
+    if (convoFilters.dateFrom || convoFilters.dateTo) {
+      chips.push({
+        label: `Last msg: ${convoFilters.dateFrom || '…'} → ${convoFilters.dateTo || '…'}`,
+        onRemove: () => { convoFilters.dateFrom = ''; convoFilters.dateTo = ''; renderConvoFilterChips(); renderConvoList(); },
+      });
+    }
+    convoFilters.tags.forEach((t) => {
+      chips.push({ label: `Tag: ${t}`, onRemove: () => { convoFilters.tags = convoFilters.tags.filter((x) => x !== t); renderConvoFilterChips(); renderConvoList(); } });
+    });
+    if (convoFilters.direction) {
+      chips.push({
+        label: convoFilters.direction === 'inbound' ? 'Last msg: Lead' : 'Last msg: You',
+        onRemove: () => { convoFilters.direction = ''; renderConvoFilterChips(); renderConvoList(); },
+      });
+    }
+    row.innerHTML = '';
+    chips.forEach((c) => {
+      const span = document.createElement('span');
+      span.className = 'fchip';
+      span.innerHTML = `${c.label}<button type="button">×</button>`;
+      span.querySelector('button').addEventListener('click', c.onRemove);
+      row.appendChild(span);
+    });
+    const countEl = document.getElementById('convoFilterCount');
+    countEl.textContent = chips.length ? `(${chips.length})` : '';
+  }
+
+  document.getElementById('convoFilterApply').addEventListener('click', () => {
+    convoFilters.dateFrom = document.getElementById('convoDateFrom').value;
+    convoFilters.dateTo = document.getElementById('convoDateTo').value;
+    convoFilters.tags = Array.from(document.querySelectorAll('#convoTagOptions .fp-tag-opt.sel')).map((el) => el.dataset.tag);
+    convoFilters.direction = convoDirectionChoice;
+    convoFilterPanel.classList.remove('open');
+    renderConvoFilterChips();
+    renderConvoList();
+  });
+
+  document.getElementById('convoFilterClear').addEventListener('click', () => {
+    convoFilters.dateFrom = '';
+    convoFilters.dateTo = '';
+    convoFilters.tags = [];
+    convoFilters.direction = '';
+    convoDirectionChoice = '';
+    document.getElementById('convoDateFrom').value = '';
+    document.getElementById('convoDateTo').value = '';
+    document.querySelectorAll('#convoDatePresets .fp-preset, #convoDirectionPresets .fp-preset').forEach((b) => b.classList.remove('sel'));
+    convoFilterPanel.classList.remove('open');
+    renderConvoFilterChips();
     renderConvoList();
   });
 
@@ -1748,10 +2078,34 @@
   }
 
   function filteredConvos() {
-    const sorted = [...convosCache].sort((a, b) => new Date(b.lastMessageDate || 0) - new Date(a.lastMessageDate || 0));
-    if (convoFilterMode === 'unread') return sorted.filter((c) => c.unreadCount > 0);
-    if (convoFilterMode === 'recent') return sorted.slice(0, 20);
-    return sorted;
+    let list = [...convosCache];
+
+    if (convoFilterMode === 'unread') list = list.filter((c) => c.unreadCount > 0);
+    else if (convoFilterMode === 'starred') list = list.filter((c) => c.starred);
+
+    if (convoFilters.dateFrom || convoFilters.dateTo) {
+      list = list.filter((c) => {
+        if (!c.lastMessageDate) return false;
+        const t = new Date(c.lastMessageDate).getTime();
+        if (convoFilters.dateFrom && t < new Date(convoFilters.dateFrom + 'T00:00:00').getTime()) return false;
+        if (convoFilters.dateTo && t > new Date(convoFilters.dateTo + 'T23:59:59').getTime()) return false;
+        return true;
+      });
+    }
+    if (convoFilters.tags.length) {
+      list = list.filter((c) => convoFilters.tags.some((t) => (c.tags || []).includes(t)));
+    }
+    if (convoFilters.direction) {
+      list = list.filter((c) => c.lastMessageDirection === convoFilters.direction);
+    }
+
+    list.sort((a, b) => {
+      const diff = new Date(b.lastMessageDate || 0) - new Date(a.lastMessageDate || 0);
+      return convoSortOrder === 'oldest' ? -diff : diff;
+    });
+
+    if (convoFilterMode === 'recent') list = list.slice(0, 20);
+    return list;
   }
 
   function renderConvoList() {
@@ -1769,15 +2123,43 @@
       .map(
         (c) => `
       <div class="convo-item ${c.id === activeConvoId ? 'active' : ''}" data-convo="${c.id}">
-        <div class="cn">${c.contactName || c.fullName || 'Unknown'} ${c.unreadCount ? `<span class="badge">${c.unreadCount}</span>` : ''}</div>
+        <div class="cn">
+          <span>${c.contactName || c.fullName || 'Unknown'} ${c.unreadCount ? `<span class="badge">${c.unreadCount}</span>` : ''}</span>
+          <span class="star-toggle${c.starred ? ' active' : ''}" data-star="${c.id}" title="${c.starred ? 'Unstar' : 'Star'}">${c.starred ? '★' : '☆'}</span>
+        </div>
         <div class="cs">${c.lastMessageBody || c.phone || ''}</div>
         <div class="ct">${c.lastMessageDate ? new Date(c.lastMessageDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</div>
       </div>`
       )
       .join('');
     box.querySelectorAll('.convo-item').forEach((el) => {
-      el.addEventListener('click', () => selectConversation(el.dataset.convo));
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('[data-star]')) return;
+        selectConversation(el.dataset.convo);
+      });
     });
+    box.querySelectorAll('[data-star]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleStarred(el.dataset.star);
+      });
+    });
+  }
+
+  async function toggleStarred(convoId) {
+    const convo = convosCache.find((c) => c.id === convoId);
+    if (!convo) return;
+    const wasStarred = convo.starred;
+    convo.starred = !wasStarred; // optimistic
+    renderConvoList();
+    try {
+      if (wasStarred) await api(`/conversations/${convoId}/star`, { method: 'DELETE' });
+      else await api(`/conversations/${convoId}/star`, { method: 'POST', body: JSON.stringify({ contactId: convo.contactId }) });
+    } catch (err) {
+      convo.starred = wasStarred; // revert on failure
+      renderConvoList();
+      toast(err.message, true);
+    }
   }
 
   async function selectConversation(id) {
@@ -1865,13 +2247,17 @@
     if (convo) {
       header.className = 'convo-header';
       header.innerHTML = `
-        <div class="name">${convo.contactName || convo.fullName || 'Unknown'}</div>
+        <div class="name">
+          <span>${convo.contactName || convo.fullName || 'Unknown'}</span>
+          <span class="star-toggle${convo.starred ? ' active' : ''}" data-star="${convo.id}" title="${convo.starred ? 'Unstar' : 'Star'}">${convo.starred ? '★' : '☆'}</span>
+        </div>
         <div class="meta">
           ${convo.phone ? `<span>📞 ${convo.phone}</span>` : ''}
           ${convo.email ? `<span>✉ ${convo.email}</span>` : ''}
         </div>
         ${(convo.tags || []).length ? `<div class="tags">${convo.tags.map((t) => `<span class="chip">${t}</span>`).join('')}</div>` : ''}
       `;
+      header.querySelector('[data-star]')?.addEventListener('click', () => toggleStarred(convo.id));
     } else {
       header.className = 'convo-header muted';
       header.textContent = 'Conversation';
@@ -1920,8 +2306,76 @@
     }
   }
 
+  let scMode = 'existing';
+  let scSelectedContact = null;
+
+  function scSetMode(mode) {
+    scMode = mode;
+    document.querySelectorAll('.sc-toggle-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    document.getElementById('scExistingPane').style.display = mode === 'existing' ? 'block' : 'none';
+    document.getElementById('scNewPane').style.display = mode === 'new' ? 'block' : 'none';
+  }
+
+  document.getElementById('scToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.sc-toggle-btn');
+    if (btn) scSetMode(btn.dataset.mode);
+  });
+
+  function scShowSelected(contact) {
+    scSelectedContact = contact;
+    document.getElementById('scSearch').style.display = 'none';
+    document.getElementById('scResults').innerHTML = '';
+    document.getElementById('scSelectedName').textContent = contactName(contact);
+    document.getElementById('scSelectedDetail').textContent = [contact.phone, contact.email].filter(Boolean).join(' · ') || 'No phone or email on file';
+    document.getElementById('scSelected').style.display = 'block';
+  }
+
+  document.getElementById('scClearSelected').addEventListener('click', () => {
+    scSelectedContact = null;
+    document.getElementById('scSelected').style.display = 'none';
+    document.getElementById('scSearch').style.display = 'block';
+    document.getElementById('scSearch').value = '';
+    document.getElementById('scSearch').focus();
+  });
+
+  let scSearchDebounce;
+  document.getElementById('scSearch').addEventListener('input', (e) => {
+    clearTimeout(scSearchDebounce);
+    const q = e.target.value.trim();
+    const results = document.getElementById('scResults');
+    if (!q) {
+      results.innerHTML = '';
+      return;
+    }
+    scSearchDebounce = setTimeout(async () => {
+      try {
+        const { contacts } = await api('/contacts?query=' + encodeURIComponent(q));
+        results.innerHTML = (contacts || [])
+          .slice(0, 8)
+          .map(
+            (c) => `
+          <div class="sc-result-item" data-contact='${JSON.stringify(c).replace(/'/g, '&apos;')}'>
+            <div class="rn">${contactName(c)}</div>
+            <div class="rd">${[c.phone, c.email].filter(Boolean).join(' · ') || 'No phone or email'}</div>
+          </div>`
+          )
+          .join('') || '<div class="sc-result-item muted">No contacts found.</div>';
+        results.querySelectorAll('[data-contact]').forEach((el) => {
+          el.addEventListener('click', () => scShowSelected(JSON.parse(el.dataset.contact)));
+        });
+      } catch (err) {
+        results.innerHTML = `<div class="sc-result-item muted">${err.message}</div>`;
+      }
+    }, 300);
+  });
+
   document.getElementById('startConvoBtn').addEventListener('click', () => {
-    ['scName', 'scPhone', 'scEmail'].forEach((id) => (document.getElementById(id).value = ''));
+    ['scName', 'scPhone', 'scEmail', 'scSearch'].forEach((id) => (document.getElementById(id).value = ''));
+    document.getElementById('scSearch').style.display = 'block';
+    document.getElementById('scResults').innerHTML = '';
+    document.getElementById('scSelected').style.display = 'none';
+    scSelectedContact = null;
+    scSetMode('existing');
     openModal('startConvoModal');
   });
 
@@ -1929,11 +2383,13 @@
     const name = document.getElementById('scName').value.trim();
     const phone = document.getElementById('scPhone').value.trim();
     const email = document.getElementById('scEmail').value.trim();
-    if (!phone) return toast('Phone is required.', true);
+    if (scMode === 'existing' && !scSelectedContact) return toast('Search and select a contact first.', true);
+    if (scMode === 'new' && !phone) return toast('Phone is required.', true);
     try {
+      const body = scMode === 'existing' ? { contactId: scSelectedContact.id } : { name, phone, email };
       const { contact, conversation } = await api('/conversations', {
         method: 'POST',
-        body: JSON.stringify({ name, phone, email }),
+        body: JSON.stringify(body),
       });
       closeModal('startConvoModal');
 

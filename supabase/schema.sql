@@ -101,3 +101,37 @@ create table if not exists contact_notes (
 create index if not exists contact_notes_contact_id_idx on contact_notes (contact_id);
 create index if not exists contact_notes_job_id_idx on contact_notes (job_id);
 create index if not exists contact_notes_location_id_idx on contact_notes (location_id);
+
+-- Which conversations a tenant has starred. GHL's own conversation search
+-- endpoint doesn't expose or filter by "starred" at all (confirmed live --
+-- only the single-conversation GET reflects it, and re-fetching that per
+-- conversation just to know starred status doesn't scale) -- this table is
+-- the actual source of truth for the "Starred" filter tab. Every
+-- star/unstar here is still mirrored to GHL's own PUT /conversations/:id
+-- (best-effort) purely so the shop's real GHL account stays consistent.
+create table if not exists starred_conversations (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  location_id text not null,
+  conversation_id text not null,
+  contact_id text,
+  created_by text,
+  unique (location_id, conversation_id)
+);
+
+create index if not exists starred_conversations_location_id_idx on starred_conversations (location_id);
+
+-- Saved contact filters ("Smart Lists" in GHL's own terminology) -- a
+-- named, reusable set of the same filters already supported by the
+-- Contacts tab (tags/date range/search query), stored as-is in `filters`
+-- and re-applied client-side when clicked.
+create table if not exists smart_lists (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  location_id text not null,
+  name text not null,
+  filters jsonb not null default '{}'::jsonb,
+  created_by text
+);
+
+create index if not exists smart_lists_location_id_idx on smart_lists (location_id);

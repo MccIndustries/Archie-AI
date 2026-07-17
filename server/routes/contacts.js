@@ -2,11 +2,62 @@ const express = require('express');
 const ghl = require('../lib/ghlClient');
 const { logSync } = require('../lib/supabase');
 const { listNotesForContact, createNote } = require('../lib/notes');
+const { listSmartLists, createSmartList, updateSmartList, deleteSmartList } = require('../lib/smartLists');
 const requireAuth = require('../middleware/requireAuth');
 const requireConnected = require('../middleware/requireConnected');
 
 const router = express.Router();
 router.use(requireAuth, requireConnected);
+
+// Registered ahead of GET/PUT/DELETE /:id so these fixed paths ("smart-lists",
+// "field-defs") are never mistaken for a contact id.
+router.get('/smart-lists', async (req, res, next) => {
+  try {
+    const smartLists = await listSmartLists();
+    res.json({ smartLists });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/smart-lists', async (req, res, next) => {
+  const { name, filters } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
+  try {
+    const smartList = await createSmartList({ name: name.trim(), filters, userEmail: req.user.email });
+    res.status(201).json({ smartList });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/smart-lists/:id', async (req, res, next) => {
+  const { name, filters } = req.body || {};
+  try {
+    const smartList = await updateSmartList(req.params.id, { name: name?.trim(), filters });
+    res.json({ smartList });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/smart-lists/:id', async (req, res, next) => {
+  try {
+    await deleteSmartList(req.params.id);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/field-defs', async (req, res, next) => {
+  try {
+    const fieldDefs = await ghl.listContactFieldDefs();
+    res.json({ fieldDefs });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get('/', async (req, res, next) => {
   try {

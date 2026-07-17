@@ -319,6 +319,27 @@ async function listOpportunityFieldDefs({ fresh = false } = {}) {
   return entry.data;
 }
 
+// Contact-model custom field definitions (e.g. "Damage Intake Form",
+// "Insurance Details" fields a shop defined in GHL directly) -- used by the
+// Contacts tab's "Manage Fields" picker so it can offer real fields from
+// this specific account, not a fixed list.
+const contactFieldDefsCache = new Map(); // locationId -> { data, at }
+
+async function listContactFieldDefs({ fresh = false } = {}) {
+  const { locationId } = config();
+  const now = Date.now();
+  const cached = contactFieldDefsCache.get(locationId);
+  if (!fresh && cached?.data && now - cached.at < FIELD_DEFS_TTL_MS) {
+    return cached.data;
+  }
+  const data = await request('GET', `/locations/${locationId}/customFields`, {
+    query: { model: 'contact' },
+  });
+  const entry = { data: data.customFields || [], at: now };
+  contactFieldDefsCache.set(locationId, entry);
+  return entry.data;
+}
+
 function buildCustomFieldsPayload(
   { carMake, carModel, damageDescription, firstName, lastName, email, phone } = {},
   fieldIds
@@ -487,6 +508,14 @@ function listConversations({ limit } = {}) {
   return request('GET', '/conversations/search', { query: { locationId, limit: limit || 50 } }).then(
     (d) => d.conversations || []
   );
+}
+
+// Mirrors a star/unstar into the shop's real GHL account -- best-effort
+// only, since our own starred_conversations table (server/lib/supabase.js)
+// is the actual source of truth for filtering (GHL's search endpoint
+// doesn't expose or filter by "starred" at all, confirmed live).
+function setConversationStarred(conversationId, starred) {
+  return request('PUT', `/conversations/${conversationId}`, { body: { starred } });
 }
 
 function getConversationMessages(conversationId) {
@@ -745,6 +774,7 @@ module.exports = {
   addTags,
   removeTags,
   listTags,
+  listContactFieldDefs,
   searchContacts,
   listPipelines,
   listPipelinesFor,
@@ -759,6 +789,7 @@ module.exports = {
   createConversation,
   findOrCreateConversation,
   listConversations,
+  setConversationStarred,
   getConversationMessages,
   sendMessage,
   listPhoneNumbers,

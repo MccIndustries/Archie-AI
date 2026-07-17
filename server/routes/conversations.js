@@ -1,6 +1,7 @@
 const express = require('express');
 const ghl = require('../lib/ghlClient');
 const { logSync } = require('../lib/supabase');
+const { listStarredIds, starConversation, unstarConversation } = require('../lib/starred');
 const requireAuth = require('../middleware/requireAuth');
 const requireConnected = require('../middleware/requireConnected');
 
@@ -9,39 +10,68 @@ router.use(requireAuth, requireConnected);
 
 router.get('/', async (req, res, next) => {
   try {
-    const conversations = await ghl.listConversations({ limit: 50 });
-    res.json({ conversations });
+    const [conversations, starredIds] = await Promise.all([
+      ghl.listConversations({ limit: 50 }),
+      listStarredIds().catch(() => new Set()),
+    ]);
+    res.json({ conversations: conversations.map((c) => ({ ...c, starred: starredIds.has(c.id) })) });
   } catch (err) {
     next(err);
   }
 });
 
-// "+ Start Conversation" -- reuses the same find-or-create-contact pattern
-// as intake, then finds-or-creates that contact's one conversation. Doesn't
-// send a message itself; the user types and sends from the thread pane
-// right after, same as any existing conversation.
-router.post('/', async (req, res, next) => {
-  const { name, phone, email } = req.body || {};
-  const userEmail = req.user.email;
-  if (!phone) return res.status(400).json({ error: 'phone is required' });
+router.post('/:id/star', async (req, res, next) => {
+  try {
+    await starConversation({ conversationId: req.params.id, contactId: req.body?.contactId, userEmail: req.user.email });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
 
-  const [firstName, ...rest] = (name || '').trim().split(/\s+/).filter(Boolean);
-  const lastName = rest.join(' ');
+router.delete('/:id/star', async (req, res, next) => {
+  try {
+    await unstarConversation(req.params.id);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// "+ Start Conversation" -- either picks an existing contact directly
+// (contactId provided, skips contact creation entirely) or reuses the same
+// find-or-create-contact pattern as intake for a brand-new one, then
+// finds-or-creates that contact's one conversation. Doesn't send a message
+// itself; the user types and sends from the thread pane right after, same
+// as any existing conversation.
+router.post('/', async (req, res, next) => {
+  const { name, phone, email, contactId } = req.body || {};
+  const userEmail = req.user.email;
 
   try {
-    const { contact, reused: contactReused } = await ghl.findOrCreateContact({
-      firstName: firstName || undefined,
-      lastName: lastName || undefined,
-      email: email || undefined,
-      phone,
-    });
+    let contact, contactReused;
+    if (contactId) {
+      contact = await ghl.getContact(contactId);
+      if (!contact) return res.status(404).json({ error: 'Contact not found' });
+      contactReused = true;
+    } else {
+      if (!phone) return res.status(400).json({ error: 'phone is required' });
+      const [firstName, ...rest] = (name || '').trim().split(/\s+/).filter(Boolean);
+      const lastName = rest.join(' ');
+      ({ contact, reused: contactReused } = await ghl.findOrCreateContact({
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        email: email || undefined,
+        phone,
+      }));
+    }
     const { conversation, reused: convoReused } = await ghl.findOrCreateConversation({ contactId: contact.id });
     await logSync({
       userEmail,
       action: 'conversation.start',
       entityType: 'contact',
       entityId: contact.id,
-      request: { name, phone, email },
+      request: { name, phone, email, contactId },
       success: true,
     });
     res.status(201).json({ contact, contactReused, conversation, convoReused });
@@ -50,7 +80,7 @@ router.post('/', async (req, res, next) => {
       userEmail,
       action: 'conversation.start',
       entityType: 'contact',
-      request: { name, phone, email },
+      request: { name, phone, email, contactId },
       success: false,
       error: err.message,
     });

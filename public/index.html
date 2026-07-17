@@ -185,7 +185,17 @@
   .cf-tab{flex:1;padding:7px 0;border:none;background:none;font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer}
   .cf-tab.active{background:var(--navy);color:#fff}
   .convo-header{padding-bottom:14px;margin-bottom:10px;border-bottom:1px solid var(--line)}
-  .convo-header .name{font-size:16px;font-weight:800}
+  .convo-header .name{font-size:16px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+  .star-toggle{cursor:pointer;color:var(--ink-faint);font-size:15px;flex-shrink:0;padding:0 2px}
+  .star-toggle.active{color:var(--amber)}
+  .star-toggle:hover{color:var(--amber)}
+
+  .smartlist-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .sl-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border:1px solid var(--line);background:#fff;font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer}
+  .sl-pill.active{background:var(--navy);border-color:var(--navy);color:#fff}
+  .sl-pill.sl-add{border-style:dashed;color:var(--navy)}
+  .sl-icon{opacity:.65;font-size:12px}
+  .sl-icon:hover{opacity:1}
   .convo-header .meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px;font-size:12.5px;color:var(--ink-soft)}
   .convo-header .tags{margin-top:6px}
   .convo-item{padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
@@ -213,6 +223,17 @@
   .modal-head h3{margin-bottom:16px}
   .modal-x{background:none;border:none;font-size:24px;line-height:1;color:var(--ink-faint);cursor:pointer;padding:0 2px;flex-shrink:0}
   .modal-x:hover{color:var(--ink)}
+
+  .sc-toggle{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);padding:4px;margin-bottom:14px}
+  .sc-toggle-btn{flex:1;padding:8px 0;border:none;background:none;font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer}
+  .sc-toggle-btn.active{background:var(--navy);color:#fff}
+  .sc-results{max-height:180px;overflow-y:auto;border:1px solid var(--line);margin-top:4px}
+  .sc-results:empty{border:none}
+  .sc-result-item{padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)}
+  .sc-result-item:last-child{border-bottom:none}
+  .sc-result-item:hover{background:#fafbfc}
+  .sc-result-item .rn{font-weight:700}
+  .sc-result-item .rd{color:var(--ink-faint);font-size:11.5px}
   .modal label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:12px 0 5px}
   .modal input,.modal select{width:100%;padding:10px 12px;border:1px solid var(--line);font-size:14px;font-family:inherit}
   .modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -401,9 +422,14 @@
   <!-- CONTACTS -->
   <section class="section" id="tab-contacts">
     <h1 class="page-title">Contacts</h1>
+    <div class="smartlist-row" id="smartListRow">
+      <button class="sl-pill active" data-smartlist="">All</button>
+      <button class="sl-pill sl-add" id="addSmartListBtn">+ Add Smart List</button>
+    </div>
     <div class="toolbar">
       <input class="search" id="contactSearch" placeholder="Search contacts…" />
       <div style="display:flex;gap:10px;position:relative">
+        <button class="btn-secondary" id="manageFieldsBtn">Manage Fields</button>
         <button class="btn-secondary" id="contactFilterBtn">Filters <span id="contactFilterCount"></span></button>
         <button class="btn-danger" id="deleteContactsBtn" style="display:none">Delete Selected (<span id="deleteContactsCount">0</span>)</button>
         <button class="gbtn" id="addContactBtn">+ Add Contact</button>
@@ -436,7 +462,7 @@
     <div class="chiprow" id="contactFilterChips"></div>
     <div class="card" style="margin-top:0">
       <table>
-        <thead><tr><th style="width:32px"><input type="checkbox" id="contactSelectAll" /></th><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th><th>Active Jobs</th></tr></thead>
+        <thead><tr id="contactsHeadRow"><th style="width:32px"><input type="checkbox" id="contactSelectAll" /></th><th>Name</th></tr></thead>
         <tbody id="contactsBody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
       </table>
     </div>
@@ -648,7 +674,48 @@
           <button class="cf-tab active" data-filter="unread">Unread</button>
           <button class="cf-tab" data-filter="all">All</button>
           <button class="cf-tab" data-filter="recent">Recent</button>
+          <button class="cf-tab" data-filter="starred">Starred</button>
         </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;position:relative">
+          <select id="convoSortSelect" style="flex:1;font-size:12px;padding:6px;border:1px solid var(--line)">
+            <option value="latest">Sort: Latest</option>
+            <option value="oldest">Sort: Oldest</option>
+          </select>
+          <button class="btn-secondary" id="convoFilterBtn" style="padding:6px 10px;font-size:12px;flex-shrink:0">Filters <span id="convoFilterCount"></span></button>
+          <div class="filterpanel" id="convoFilterPanel" style="right:0;width:280px">
+            <div class="fp-row">
+              <label>Last message</label>
+              <div class="fp-presets" id="convoDatePresets">
+                <button type="button" class="fp-preset" data-preset="">Any time</button>
+                <button type="button" class="fp-preset" data-preset="today">Today</button>
+                <button type="button" class="fp-preset" data-preset="week">This week</button>
+                <button type="button" class="fp-preset" data-preset="month">This month</button>
+              </div>
+              <div class="fp-daterange">
+                <input type="date" id="convoDateFrom" />
+                <span class="muted">to</span>
+                <input type="date" id="convoDateTo" />
+              </div>
+            </div>
+            <div class="fp-row">
+              <label>Tags</label>
+              <div id="convoTagOptions" class="fp-tags"><span class="muted" style="font-size:12.5px">No tags yet.</span></div>
+            </div>
+            <div class="fp-row">
+              <label>Last message from</label>
+              <div class="fp-presets" id="convoDirectionPresets">
+                <button type="button" class="fp-preset" data-direction="">Anyone</button>
+                <button type="button" class="fp-preset" data-direction="inbound">Lead</button>
+                <button type="button" class="fp-preset" data-direction="outbound">You</button>
+              </div>
+            </div>
+            <div class="fp-actions">
+              <button class="btn-secondary" id="convoFilterClear">Clear</button>
+              <button class="btn-primary" id="convoFilterApply">Apply</button>
+            </div>
+          </div>
+        </div>
+        <div class="chiprow" id="convoFilterChips"></div>
         <div id="convoList"><div class="loading">Loading…</div></div>
       </div>
       <div class="card convo-thread-pane" style="margin-top:0">
@@ -700,9 +767,28 @@
 <div class="overlay" id="startConvoModal">
   <div class="modal">
     <h3>Start Conversation</h3>
-    <label>Name <span class="muted" style="font-weight:500">(optional)</span></label><input id="scName" />
-    <label>Phone</label><input id="scPhone" type="tel" required />
-    <label>Email <span class="muted" style="font-weight:500">(optional)</span></label><input id="scEmail" type="email" />
+    <div class="sc-toggle" id="scToggle">
+      <button type="button" class="sc-toggle-btn active" data-mode="existing">Existing Contact</button>
+      <button type="button" class="sc-toggle-btn" data-mode="new">New Contact</button>
+    </div>
+
+    <div id="scExistingPane">
+      <label>Search contacts</label>
+      <input id="scSearch" placeholder="Search by name, email, or phone…" autocomplete="off" />
+      <div id="scResults" class="sc-results"></div>
+      <div id="scSelected" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--line);background:var(--navy-soft)">
+        <div style="font-weight:700" id="scSelectedName"></div>
+        <div class="muted" id="scSelectedDetail" style="font-size:12.5px"></div>
+        <span class="link" id="scClearSelected" style="font-size:12px">Change</span>
+      </div>
+    </div>
+
+    <div id="scNewPane" style="display:none">
+      <label>Name <span class="muted" style="font-weight:500">(optional)</span></label><input id="scName" />
+      <label>Phone</label><input id="scPhone" type="tel" />
+      <label>Email <span class="muted" style="font-weight:500">(optional)</span></label><input id="scEmail" type="email" />
+    </div>
+
     <div class="actions">
       <button class="btn-secondary" data-close="startConvoModal">Cancel</button>
       <button class="btn-primary" id="scSave">Start</button>
@@ -809,6 +895,22 @@
     <div id="kpiModalBody"></div>
     <div class="actions">
       <button class="btn-secondary" data-close="kpiDetailModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manage Fields modal -->
+<div class="overlay" id="manageFieldsModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <h3>Manage Fields</h3>
+      <button type="button" class="modal-x" data-close="manageFieldsModal" aria-label="Close">&times;</button>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin-bottom:10px">Choose which columns show in the Contacts table.</p>
+    <div id="manageFieldsBody"><div class="loading">Loading…</div></div>
+    <div class="actions">
+      <button class="btn-secondary" data-close="manageFieldsModal">Cancel</button>
+      <button class="btn-primary" id="manageFieldsApply">Apply</button>
     </div>
   </div>
 </div>
