@@ -261,6 +261,7 @@
         dash.jobsNeedingAttention.forEach((j) => {
           const vehicle = [j.carMake, j.carModel].filter(Boolean).join(' ');
           const tr = document.createElement('tr');
+          tr.className = 'rowlink';
           tr.innerHTML = `
             <td>#${j.id}</td>
             <td>${j.customerName || '—'}${vehicle ? `<div class="muted" style="font-size:12px">${vehicle}</div>` : ''}</td>
@@ -268,6 +269,7 @@
             <td>${displayStageName(j.stageName) || '—'}</td>
             <td><span class="days-chip ${daysChipClass(j.daysInStage)}">${j.daysInStage}d</span></td>
           `;
+          tr.addEventListener('click', () => openJobDetail(j.id));
           attentionBody.appendChild(tr);
         });
       }
