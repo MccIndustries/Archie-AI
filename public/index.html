@@ -482,7 +482,10 @@
         <label>Phone</label><input id="cpPhone" type="tel" />
         <label>Tags</label>
         <div class="tagedit" id="cpTags"></div>
-        <input id="cpNewTag" placeholder="Add a tag and press Enter" style="margin-top:8px" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="cpNewTag" placeholder="Add a tag and press Enter" style="flex:1" />
+          <button type="button" class="btn-secondary" id="cpAddTagBtn" style="padding:0 14px">+ Add</button>
+        </div>
         <div class="actions" style="justify-content:flex-start;margin-top:16px">
           <button class="btn-primary" id="cpSave">Save changes</button>
           <button class="btn-danger" id="cpDelete">Delete Contact</button>

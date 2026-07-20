@@ -901,6 +901,12 @@
       toast('Contact updated.');
       document.getElementById('cpName').textContent =
         [document.getElementById('cpFirst').value, document.getElementById('cpLast').value].filter(Boolean).join(' ') || 'Contact';
+      // Save Changes doesn't otherwise touch tags at all -- if the VA typed
+      // a tag but clicked Save instead of pressing Enter, flush it here too
+      // rather than silently dropping it (this is exactly what looked like
+      // "adding a tag does nothing").
+      const pendingTag = document.getElementById('cpNewTag').value.trim();
+      if (pendingTag) await addCpTag(pendingTag);
     } catch (err) {
       toast(err.message, true);
     }
@@ -932,18 +938,28 @@
     }
   }
 
-  document.getElementById('cpNewTag').addEventListener('keydown', async (e) => {
-    if (e.key !== 'Enter') return;
-    const tag = e.target.value.trim();
-    if (!tag) return;
+  async function addCpTag(tag) {
     try {
       const result = await api(`/contacts/${cpContactId}/tags`, { method: 'POST', body: JSON.stringify({ tags: [tag] }) });
-      e.target.value = '';
+      document.getElementById('cpNewTag').value = '';
       toast(`Tag "${tag}" added.`);
       renderCpTagEdit(result.tags);
     } catch (err) {
       toast(err.message, true);
     }
+  }
+
+  document.getElementById('cpNewTag').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const tag = e.target.value.trim();
+    if (tag) addCpTag(tag);
+  });
+
+  document.getElementById('cpAddTagBtn').addEventListener('click', () => {
+    const tag = document.getElementById('cpNewTag').value.trim();
+    if (tag) addCpTag(tag);
+    else document.getElementById('cpNewTag').focus();
   });
 
   // All jobs across every pipeline -- used for the Contacts table's "Active
