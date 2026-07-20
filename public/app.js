@@ -871,13 +871,14 @@
     document.getElementById('cpConvoStart').style.display = 'none';
 
     try {
-      const { contact } = await api('/contacts/' + contactId);
+      const [{ contact }] = await Promise.all([api('/contacts/' + contactId), ensureContactFieldDefs()]);
       document.getElementById('cpName').textContent = contactName(contact);
       document.getElementById('cpFirst').value = contact.firstName || '';
       document.getElementById('cpLast').value = contact.lastName || '';
       document.getElementById('cpEmail').value = contact.email || '';
       document.getElementById('cpPhone').value = contact.phone || '';
       renderCpTagEdit(contact.tags);
+      renderCpCustomFields(contact);
     } catch (err) {
       toast(err.message, true);
     }
@@ -887,8 +888,43 @@
     loadCpConversation(contactId);
   }
 
+  // Shows every custom field defined on this GHL account for contacts, not
+  // just the ones selected in Manage Fields (that only controls the
+  // Contacts table's columns) -- matches GHL's own contact detail view:
+  // name + value always, blank inputs included, so anything can be filled
+  // in and saved even if it was never set before.
+  function renderCpCustomFields(contact) {
+    const section = document.getElementById('cpCustomFieldsSection');
+    const box = document.getElementById('cpCustomFields');
+    const defs = contactFieldDefsCache || [];
+    if (!defs.length) {
+      section.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    section.style.display = 'block';
+    const valueById = new Map(
+      (contact.customFields || []).map((f) => {
+        let v = f.value ?? f.fieldValue ?? f.fieldValueString ?? '';
+        if (Array.isArray(v)) v = v.join(', ');
+        return [f.id, v];
+      })
+    );
+    box.innerHTML = defs
+      .map(
+        (f) => `
+      <label>${escapeHtml(f.name)}</label>
+      <input data-cf-id="${f.id}" value="${escapeHtml(String(valueById.get(f.id) ?? ''))}" />`
+      )
+      .join('');
+  }
+
   document.getElementById('cpSave').addEventListener('click', async () => {
     try {
+      const customFields = Array.from(document.querySelectorAll('#cpCustomFields [data-cf-id]')).map((el) => ({
+        id: el.dataset.cfId,
+        value: el.value,
+      }));
       await api('/contacts/' + cpContactId, {
         method: 'PUT',
         body: JSON.stringify({
@@ -896,6 +932,7 @@
           lastName: document.getElementById('cpLast').value.trim(),
           email: document.getElementById('cpEmail').value.trim(),
           phone: document.getElementById('cpPhone').value.trim(),
+          customFields,
         }),
       });
       toast('Contact updated.');

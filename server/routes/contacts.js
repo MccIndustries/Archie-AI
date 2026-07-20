@@ -121,9 +121,9 @@ router.post('/', async (req, res, next) => {
 });
 
 router.put('/:id', async (req, res, next) => {
-  const { firstName, lastName, email, phone } = req.body || {};
+  const { firstName, lastName, email, phone, customFields } = req.body || {};
   try {
-    const contact = await ghl.updateContact(req.params.id, { firstName, lastName, email, phone });
+    const contact = await ghl.updateContact(req.params.id, { firstName, lastName, email, phone, customFields });
     await logSync({
       userEmail: req.user.email,
       action: 'contact.update',

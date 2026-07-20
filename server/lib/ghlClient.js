@@ -106,10 +106,27 @@ function createContact({ firstName, lastName, email, phone, tags }) {
   }).then((d) => d.contact);
 }
 
-function updateContact(id, { firstName, lastName, email, phone }) {
-  return request('PUT', `/contacts/${id}`, {
-    body: { firstName, lastName, email, phone },
-  }).then((d) => d.contact);
+// GHL's contact update quirk (confirmed live): writing a custom field's
+// value by its `id` alone silently no-ops the very first time that field
+// is ever set on a contact -- 200 response, but the value never lands.
+// Using the field's bare `key` (its fieldKey with the "contact." model
+// prefix stripped) instead works reliably every time, first write and
+// every write after, so that's the only shape used here regardless of
+// whether this is the field's first value or an edit.
+async function updateContact(id, { firstName, lastName, email, phone, customFields }) {
+  const body = { firstName, lastName, email, phone };
+  if (customFields && customFields.length) {
+    const defs = await listContactFieldDefs();
+    const byId = new Map(defs.map((f) => [f.id, f]));
+    body.customFields = customFields
+      .map((cf) => {
+        const def = byId.get(cf.id);
+        if (!def) return null;
+        return { key: (def.fieldKey || '').replace(/^contact\./, ''), value: cf.value };
+      })
+      .filter(Boolean);
+  }
+  return request('PUT', `/contacts/${id}`, { body }).then((d) => d.contact);
 }
 
 function deleteContact(id) {
