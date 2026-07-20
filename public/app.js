@@ -919,10 +919,14 @@
 
   async function removeCpTag(tag) {
     try {
-      await api(`/contacts/${cpContactId}/tags`, { method: 'DELETE', body: JSON.stringify({ tags: [tag] }) });
+      // Use the write's own response (GHL returns the full updated tags
+      // list directly) instead of a separate GET re-fetch -- that re-fetch
+      // occasionally lands before GHL's read path catches up with the
+      // write, showing stale tags right after a successful change (same
+      // eventual-consistency class of bug already hit elsewhere in this app).
+      const result = await api(`/contacts/${cpContactId}/tags`, { method: 'DELETE', body: JSON.stringify({ tags: [tag] }) });
       toast(`Tag "${tag}" removed.`);
-      const { contact } = await api('/contacts/' + cpContactId);
-      renderCpTagEdit(contact.tags);
+      renderCpTagEdit(result.tags);
     } catch (err) {
       toast(err.message, true);
     }
@@ -933,11 +937,10 @@
     const tag = e.target.value.trim();
     if (!tag) return;
     try {
-      await api(`/contacts/${cpContactId}/tags`, { method: 'POST', body: JSON.stringify({ tags: [tag] }) });
+      const result = await api(`/contacts/${cpContactId}/tags`, { method: 'POST', body: JSON.stringify({ tags: [tag] }) });
       e.target.value = '';
       toast(`Tag "${tag}" added.`);
-      const { contact } = await api('/contacts/' + cpContactId);
-      renderCpTagEdit(contact.tags);
+      renderCpTagEdit(result.tags);
     } catch (err) {
       toast(err.message, true);
     }
