@@ -1092,21 +1092,39 @@
     thread.innerHTML = '<div class="muted">Loading…</div>';
     try {
       const { messages } = await api(`/conversations/${cpConvoId}/messages`);
-      const real = (messages || []).filter((m) => m.messageType === 'TYPE_SMS' || m.messageType === 'TYPE_EMAIL');
-      if (!real.length) {
+      // GHL logs a booked appointment as an activity message on the same
+      // conversation timeline as SMS/email (confirmed live, with the same
+      // few-seconds eventual-consistency delay seen elsewhere in this app)
+      // -- shown here as a distinct row, clickable through to the same
+      // appointment detail popup used on the Calendar tab.
+      const relevant = (messages || []).filter(
+        (m) => m.messageType === 'TYPE_SMS' || m.messageType === 'TYPE_EMAIL' || m.messageType === 'TYPE_ACTIVITY_APPOINTMENT'
+      );
+      if (!relevant.length) {
         thread.innerHTML = '<div class="muted">No messages yet.</div>';
         return;
       }
-      thread.innerHTML = real
+      thread.innerHTML = relevant
         .slice()
         .reverse()
         .map((m) => {
+          if (m.messageType === 'TYPE_ACTIVITY_APPOINTMENT') {
+            const apptId = m.activity?.data?.id || '';
+            const title = m.activity?.data?.appointmentTitle || m.body || 'Appointment';
+            const when = m.activity?.data?.timestamp
+              ? new Date(m.activity.data.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+              : '';
+            return `<div class="msg-activity" data-appt-activity="${apptId}">📅 Appointment booked: <strong>${escapeHtml(title)}</strong>${when ? ` — ${when}` : ''}</div>`;
+          }
           const failed = m.status === 'failed';
           const cls = failed ? 'failed' : m.direction === 'outbound' ? 'outbound' : 'inbound';
           const time = new Date(m.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
           return `<div class="msg-bubble ${cls}">${m.body || ''}<div class="mt">${failed ? `⚠ ${m.error || 'Failed to send'}` : time}</div></div>`;
         })
         .join('');
+      thread.querySelectorAll('[data-appt-activity]').forEach((el) => {
+        if (el.dataset.apptActivity) el.addEventListener('click', () => openAppointmentDetail(el.dataset.apptActivity));
+      });
       thread.scrollTop = thread.scrollHeight;
     } catch (err) {
       thread.innerHTML = `<div class="muted">${err.message}</div>`;
@@ -1835,8 +1853,25 @@
   }
 
   async function openAppointmentDetail(apptId) {
-    const appt = appointmentsCache.find((a) => a.id === apptId);
-    if (!appt) return;
+    // Reuse the Calendar tab's cache when available; otherwise (e.g. opened
+    // from a contact's conversation, which never visited the Calendar tab)
+    // fetch the appointment and calendar list directly.
+    let appt = appointmentsCache.find((a) => a.id === apptId);
+    if (!appt) {
+      try {
+        ({ appointment: appt } = await api(`/calendars/appointment/${apptId}`));
+      } catch (err) {
+        return toast(err.message, true);
+      }
+    }
+    if (!calendarsCache.length) {
+      try {
+        const { calendars } = await api('/calendars');
+        calendarsCache = calendars || [];
+      } catch {
+        // Fall through -- calendar name will just show the raw id below.
+      }
+    }
     const calendar = calendarsCache.find((c) => c.id === appt.calendarId);
 
     document.getElementById('adTitle').textContent = appt.title || 'Appointment';

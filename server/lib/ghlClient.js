@@ -609,6 +609,13 @@ function listAppointments({ calendarId, startTime, endTime }) {
   }).then((d) => d.events || []);
 }
 
+// Looks up one appointment directly by id -- used when a caller only has
+// the id (e.g. from a conversation's "appointment_created" activity
+// message) and isn't already holding a calendar-scoped events list.
+function getAppointment(id) {
+  return request('GET', `/calendars/events/appointments/${id}`).then((d) => d.appointment);
+}
+
 function createAppointment({ calendarId, contactId, startTime, endTime, title }) {
   const { locationId } = config();
   return request('POST', '/calendars/events/appointments', {
@@ -817,6 +824,7 @@ module.exports = {
   listCalendars,
   listCalendarsFor,
   listAppointments,
+  getAppointment,
   createAppointment,
   getDefaultCalendarId,
   getFreeSlots,

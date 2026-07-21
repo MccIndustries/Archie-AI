@@ -15,6 +15,17 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Registered ahead of /:id/appointments so "appointment" is never mistaken
+// for a calendar id.
+router.get('/appointment/:id', async (req, res, next) => {
+  try {
+    const appointment = await ghl.getAppointment(req.params.id);
+    res.json({ appointment });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id/appointments', async (req, res, next) => {
   try {
     const { start, end } = req.query;
