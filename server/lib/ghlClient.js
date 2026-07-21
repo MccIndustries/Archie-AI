@@ -581,6 +581,44 @@ function deleteGhlNote(contactId, noteId) {
   return request('DELETE', `/contacts/${contactId}/notes/${noteId}`);
 }
 
+// ---------- Calls ----------
+// AI-agent-handled calls get a rich log (summary, full transcript, extracted
+// data, actions taken) via this separate Voice AI dashboard API -- distinct
+// from the generic conversation message, which only ever carries
+// direction/duration/status for ANY call (AI or human-dialed). Verified live
+// against a real production location: matched back to the conversation's
+// TYPE_CALL message via the call log's own `messageId` field. Best-effort --
+// locations without Voice AI configured simply have no logs to find.
+function listVoiceAiCallLogs(contactId) {
+  const { locationId } = config();
+  return request('GET', '/voice-ai/dashboard/call-logs', { query: { locationId, contactId } })
+    .then((d) => d.callLogs || [])
+    .catch(() => []);
+}
+
+// Raw audio recording for any call (AI or human-dialed) -- confirmed live to
+// return audio/x-wav. Bypasses the shared JSON `request()` helper since this
+// isn't a JSON response.
+async function getCallRecording(messageId) {
+  const { token, locationId } = config();
+  const res = await fetch(`${BASE_URL}/conversations/messages/${messageId}/locations/${locationId}/recording`, {
+    headers: { Authorization: `Bearer ${token}`, Version: API_VERSION },
+  });
+  if (!res.ok) throw new GhlApiError(`No recording available (${res.status})`, res.status);
+  const contentType = res.headers.get('content-type') || 'audio/x-wav';
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return { buffer, contentType };
+}
+
+// Best-effort: only succeeds once GHL's paid Voice Intelligence transcription
+// add-on is enabled and has processed the call -- confirmed live that every
+// call without it returns 400 CONVERSATIONS_MSG_RECORDING_NOT_FOUND, which we
+// treat as "no transcript" here rather than an error.
+function getMessageTranscription(messageId) {
+  const { locationId } = config();
+  return request('GET', `/conversations/locations/${locationId}/messages/${messageId}/transcription`).catch(() => null);
+}
+
 // ---------- Calendars ----------
 
 function listCalendars() {
@@ -821,6 +859,9 @@ module.exports = {
   createGhlNote,
   updateGhlNote,
   deleteGhlNote,
+  listVoiceAiCallLogs,
+  getCallRecording,
+  getMessageTranscription,
   listCalendars,
   listCalendarsFor,
   listAppointments,

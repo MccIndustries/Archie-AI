@@ -1098,7 +1098,11 @@
       // -- shown here as a distinct row, clickable through to the same
       // appointment detail popup used on the Calendar tab.
       const relevant = (messages || []).filter(
-        (m) => m.messageType === 'TYPE_SMS' || m.messageType === 'TYPE_EMAIL' || m.messageType === 'TYPE_ACTIVITY_APPOINTMENT'
+        (m) =>
+          m.messageType === 'TYPE_SMS' ||
+          m.messageType === 'TYPE_EMAIL' ||
+          m.messageType === 'TYPE_ACTIVITY_APPOINTMENT' ||
+          m.messageType === 'TYPE_CALL'
       );
       if (!relevant.length) {
         thread.innerHTML = '<div class="muted">No messages yet.</div>';
@@ -1116,6 +1120,7 @@
               : '';
             return `<div class="msg-activity" data-appt-activity="${apptId}">📅 Appointment booked: <strong>${escapeHtml(title)}</strong>${when ? ` — ${when}` : ''}</div>`;
           }
+          if (m.messageType === 'TYPE_CALL') return renderCallRow(m);
           const failed = m.status === 'failed';
           const cls = failed ? 'failed' : m.direction === 'outbound' ? 'outbound' : 'inbound';
           const time = new Date(m.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -1125,6 +1130,7 @@
       thread.querySelectorAll('[data-appt-activity]').forEach((el) => {
         if (el.dataset.apptActivity) el.addEventListener('click', () => openAppointmentDetail(el.dataset.apptActivity));
       });
+      wireCallRows(thread);
       thread.scrollTop = thread.scrollHeight;
     } catch (err) {
       thread.innerHTML = `<div class="muted">${err.message}</div>`;
@@ -1912,6 +1918,116 @@
   }
 
   document.getElementById('calendarSelect').addEventListener('change', loadAppointments);
+
+  // ---------- Calls (SMS/Email conversation timeline also carries TYPE_CALL
+  // entries for every phone call GHL logs against a contact -- AI-agent or
+  // human-dialed, inbound or outbound) ----------
+  const CALL_STATUS_LABEL = {
+    completed: 'Call completed',
+    'no-answer': 'No answer',
+    voicemail: 'Voicemail',
+    busy: 'Busy',
+    failed: 'Call failed',
+  };
+
+  function renderCallRow(m) {
+    const dir = m.direction === 'outbound' ? 'outbound' : 'inbound';
+    const status = m.meta?.call?.status || m.status || '';
+    const duration = m.meta?.call?.duration;
+    const durStr = duration ? ` (${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')})` : '';
+    const time = new Date(m.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const label = CALL_STATUS_LABEL[status] || 'Call';
+    return `<div class="msg-activity" data-call="${m.id}" data-call-contact="${m.contactId}" data-call-dir="${dir}" data-call-status="${escapeHtml(status)}" data-call-duration="${duration || ''}" data-call-time="${m.dateAdded}">📞 ${dir === 'outbound' ? 'Outbound' : 'Inbound'} ${label}${durStr} — ${time}</div>`;
+  }
+
+  function wireCallRows(thread) {
+    thread.querySelectorAll('[data-call]').forEach((el) => {
+      el.addEventListener('click', () =>
+        openCallDetail({
+          messageId: el.dataset.call,
+          contactId: el.dataset.callContact,
+          direction: el.dataset.callDir,
+          status: el.dataset.callStatus,
+          duration: el.dataset.callDuration ? Number(el.dataset.callDuration) : null,
+          dateAdded: el.dataset.callTime,
+        })
+      );
+    });
+  }
+
+  async function openCallDetail(call) {
+    document.getElementById('cdTitle').textContent = call.direction === 'outbound' ? 'Outbound Call' : 'Inbound Call';
+    document.getElementById('cdTime').textContent = call.dateAdded
+      ? new Date(call.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '—';
+    document.getElementById('cdDirection').textContent = call.direction === 'outbound' ? 'Outbound' : 'Inbound';
+    document.getElementById('cdStatus').textContent = call.status || '—';
+    document.getElementById('cdDuration').textContent = call.duration
+      ? `${Math.floor(call.duration / 60)}:${String(call.duration % 60).padStart(2, '0')}`
+      : '—';
+
+    const audio = document.getElementById('cdAudio');
+    audio.removeAttribute('src');
+    document.getElementById('cdRecordingWrap').style.display = 'none';
+    document.getElementById('cdSummaryWrap').style.display = 'none';
+    document.getElementById('cdTranscript').innerHTML = '<span class="muted">Loading…</span>';
+
+    openModal('callDetailModal');
+
+    // Recording is best-effort -- not every call has one available.
+    fetch(`/api/calls/${call.messageId}/recording`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const blob = await res.blob();
+        audio.src = URL.createObjectURL(blob);
+        document.getElementById('cdRecordingWrap').style.display = 'block';
+      })
+      .catch(() => {});
+
+    const transcriptBox = document.getElementById('cdTranscript');
+    try {
+      const { voiceAi, transcription } = await api(`/calls/${call.messageId}/detail?contactId=${call.contactId || ''}`);
+      if (voiceAi) {
+        if (voiceAi.summary) {
+          document.getElementById('cdSummary').textContent = voiceAi.summary;
+          document.getElementById('cdSummaryWrap').style.display = 'block';
+        }
+        if (voiceAi.transcript) {
+          transcriptBox.innerHTML = voiceAi.transcript
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => {
+              const isBot = /^bot:/i.test(line);
+              const text = line.replace(/^(bot|human):/i, '').trim();
+              return `<div class="transcript-line ${isBot ? 'bot' : 'human'}"><strong>${isBot ? 'Agent:' : 'Caller:'}</strong>${escapeHtml(text)}</div>`;
+            })
+            .join('');
+        } else {
+          transcriptBox.innerHTML = '<span class="muted">Transcript not available for this call.</span>';
+        }
+      } else if (transcription) {
+        // Shape not confirmed live (this GHL account's Voice Intelligence
+        // add-on has never returned a successful transcription) -- render
+        // defensively against the few plausible shapes rather than assume.
+        const segments =
+          transcription.transcriptions || transcription.segments || (Array.isArray(transcription) ? transcription : null);
+        if (segments && segments.length) {
+          transcriptBox.innerHTML = segments
+            .map((s) => `<div class="transcript-line">${escapeHtml(s.transcript || s.sentence || s.text || JSON.stringify(s))}</div>`)
+            .join('');
+        } else {
+          transcriptBox.innerHTML = '<span class="muted">Transcript not available for this call.</span>';
+        }
+      } else {
+        transcriptBox.innerHTML = '<span class="muted">Transcript not available for this call.</span>';
+      }
+    } catch (err) {
+      transcriptBox.innerHTML = `<span class="muted">${err.message}</span>`;
+    }
+  }
   document.getElementById('calendarDate').addEventListener('change', loadAppointments);
 
   // ---------- Reporting ----------
@@ -2398,7 +2514,9 @@
     if (!silent) thread.innerHTML = '<div class="muted">Loading…</div>';
     try {
       const { messages } = await api(`/conversations/${id}/messages`);
-      const real = (messages || []).filter((m) => m.messageType === 'TYPE_SMS' || m.messageType === 'TYPE_EMAIL');
+      const real = (messages || []).filter(
+        (m) => m.messageType === 'TYPE_SMS' || m.messageType === 'TYPE_EMAIL' || m.messageType === 'TYPE_CALL'
+      );
       if (!real.length) {
         thread.innerHTML = '<div class="muted">No messages yet.</div>';
         return;
@@ -2407,12 +2525,14 @@
         .slice()
         .reverse()
         .map((m) => {
+          if (m.messageType === 'TYPE_CALL') return renderCallRow(m);
           const failed = m.status === 'failed';
           const cls = failed ? 'failed' : m.direction === 'outbound' ? 'outbound' : 'inbound';
           const time = new Date(m.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
           return `<div class="msg-bubble ${cls}">${m.body || ''}<div class="mt">${failed ? `⚠ ${m.error || 'Failed to send'}` : time}</div></div>`;
         })
         .join('');
+      wireCallRows(thread);
       thread.scrollTop = thread.scrollHeight;
     } catch (err) {
       if (!silent) thread.innerHTML = `<div class="muted">${err.message}</div>`;

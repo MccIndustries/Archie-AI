@@ -217,6 +217,11 @@
   .convo-reply input{flex:1;padding:11px 14px;border:1px solid var(--line);font-size:14px;font-family:inherit}
   .convo-reply select{padding:11px 12px;border:1px solid var(--line);font-size:13px;font-family:inherit}
 
+  .transcript-line{padding:6px 0;line-height:1.4}
+  .transcript-line.bot{color:var(--navy)}
+  .transcript-line.human{color:var(--ink)}
+  .transcript-line strong{margin-right:4px}
+
   .overlay{position:fixed;inset:0;background:rgba(15,27,45,.4);display:none;align-items:center;justify-content:center;z-index:100}
   .overlay.open{display:flex}
   .modal{background:#fff;padding:26px;width:100%;max-width:420px;max-height:86vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
@@ -893,6 +898,39 @@
     <div id="adContact"></div>
     <div class="actions">
       <button class="btn-secondary" data-close="appointmentDetailModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Call Detail modal -->
+<div class="overlay" id="callDetailModal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <h3 id="cdTitle">Call</h3>
+      <button type="button" class="modal-x" data-close="callDetailModal" aria-label="Close">&times;</button>
+    </div>
+    <label>Date &amp; Time</label>
+    <div id="cdTime" style="font-size:14px"></div>
+    <label>Direction</label>
+    <div id="cdDirection" style="font-size:14px"></div>
+    <label>Status</label>
+    <div id="cdStatus" style="font-size:14px;text-transform:capitalize"></div>
+    <label>Duration</label>
+    <div id="cdDuration" style="font-size:14px"></div>
+    <div id="cdRecordingWrap" style="margin-top:10px;display:none">
+      <label>Recording</label>
+      <audio id="cdAudio" controls style="width:100%"></audio>
+    </div>
+    <div id="cdSummaryWrap" style="margin-top:10px;display:none">
+      <label>Summary</label>
+      <div id="cdSummary" class="muted" style="font-size:13px"></div>
+    </div>
+    <div style="margin-top:10px">
+      <label>Transcript</label>
+      <div id="cdTranscript" style="font-size:13px;max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:10px"></div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" data-close="callDetailModal">Close</button>
     </div>
   </div>
 </div>
