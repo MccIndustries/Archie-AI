@@ -1108,6 +1108,7 @@
         thread.innerHTML = '<div class="muted">No messages yet.</div>';
         return;
       }
+      const emailMessages = [];
       thread.innerHTML = relevant
         .slice()
         .reverse()
@@ -1121,16 +1122,21 @@
             return `<div class="msg-activity" data-appt-activity="${apptId}">📅 Appointment booked: <strong>${escapeHtml(title)}</strong>${when ? ` — ${when}` : ''}</div>`;
           }
           if (m.messageType === 'TYPE_CALL') return renderCallRow(m);
+          if (m.messageType === 'TYPE_EMAIL') {
+            emailMessages.push(m);
+            return renderEmailRow(m, emailMessages.length - 1);
+          }
           const failed = m.status === 'failed';
           const cls = failed ? 'failed' : m.direction === 'outbound' ? 'outbound' : 'inbound';
           const time = new Date(m.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-          return `<div class="msg-bubble ${cls}">${m.body || ''}<div class="mt">${failed ? `⚠ ${m.error || 'Failed to send'}` : time}</div></div>`;
+          return `<div class="msg-bubble ${cls}">${escapeHtml(m.body || '')}<div class="mt">${failed ? `⚠ ${m.error || 'Failed to send'}` : time}</div></div>`;
         })
         .join('');
       thread.querySelectorAll('[data-appt-activity]').forEach((el) => {
         if (el.dataset.apptActivity) el.addEventListener('click', () => openAppointmentDetail(el.dataset.apptActivity));
       });
       wireCallRows(thread);
+      wireEmailBodies(thread, emailMessages);
       thread.scrollTop = thread.scrollHeight;
     } catch (err) {
       thread.innerHTML = `<div class="muted">${err.message}</div>`;
@@ -1940,6 +1946,55 @@
     return `<div class="msg-activity" data-call="${m.id}" data-call-contact="${m.contactId}" data-call-dir="${dir}" data-call-status="${escapeHtml(status)}" data-call-duration="${duration || ''}" data-call-time="${m.dateAdded}">📞 ${dir === 'outbound' ? 'Outbound' : 'Inbound'} ${label}${durStr} — ${time}</div>`;
   }
 
+  // ---------- Emails (shown as an envelope card, not a chat bubble, same
+  // distinction GHL's own conversation view makes) ----------
+  function renderEmailRow(m, idx) {
+    const dir = m.direction === 'outbound' ? 'outbound' : 'inbound';
+    const subject = m.meta?.email?.subject || m.subject || '(no subject)';
+    const time = new Date(m.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return `<div class="msg-email ${dir}">
+      <div class="msg-email-head">
+        <span class="dir">${dir === 'outbound' ? '📤 Sent' : '📥 Received'}</span>
+        <span class="subj">${escapeHtml(subject)}</span>
+        <span class="mt">${time}</span>
+      </div>
+      <div class="msg-email-body" data-email-body="${idx}"></div>
+    </div>`;
+  }
+
+  // Email bodies come back as raw (often externally-sourced) HTML -- never
+  // innerHTML this directly. A fully sandboxed iframe (no allow-scripts, no
+  // allow-forms, no allow-top-navigation) renders the formatting safely with
+  // zero script-execution surface; allow-same-origin alone is safe here
+  // specifically because allow-scripts is never granted, so there's nothing
+  // for it to execute -- it's only there so we can read scrollHeight back to
+  // auto-size the frame.
+  function wireEmailBodies(thread, emailMessages) {
+    thread.querySelectorAll('[data-email-body]').forEach((slot) => {
+      const m = emailMessages[Number(slot.dataset.emailBody)];
+      if (!m) return;
+      if ((m.contentType || '').includes('html')) {
+        const frame = document.createElement('iframe');
+        frame.className = 'email-body-frame';
+        frame.setAttribute('sandbox', 'allow-same-origin');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.srcdoc = m.body || '';
+        frame.addEventListener('load', () => {
+          try {
+            frame.style.height = `${frame.contentDocument.documentElement.scrollHeight}px`;
+          } catch {
+            frame.style.height = '120px';
+          }
+        });
+        slot.appendChild(frame);
+      } else {
+        const pre = document.createElement('pre');
+        pre.textContent = m.body || '';
+        slot.appendChild(pre);
+      }
+    });
+  }
+
   function wireCallRows(thread) {
     thread.querySelectorAll('[data-call]').forEach((el) => {
       el.addEventListener('click', () =>
@@ -2521,18 +2576,24 @@
         thread.innerHTML = '<div class="muted">No messages yet.</div>';
         return;
       }
+      const emailMessages = [];
       thread.innerHTML = real
         .slice()
         .reverse()
         .map((m) => {
           if (m.messageType === 'TYPE_CALL') return renderCallRow(m);
+          if (m.messageType === 'TYPE_EMAIL') {
+            emailMessages.push(m);
+            return renderEmailRow(m, emailMessages.length - 1);
+          }
           const failed = m.status === 'failed';
           const cls = failed ? 'failed' : m.direction === 'outbound' ? 'outbound' : 'inbound';
           const time = new Date(m.dateAdded).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-          return `<div class="msg-bubble ${cls}">${m.body || ''}<div class="mt">${failed ? `⚠ ${m.error || 'Failed to send'}` : time}</div></div>`;
+          return `<div class="msg-bubble ${cls}">${escapeHtml(m.body || '')}<div class="mt">${failed ? `⚠ ${m.error || 'Failed to send'}` : time}</div></div>`;
         })
         .join('');
       wireCallRows(thread);
+      wireEmailBodies(thread, emailMessages);
       thread.scrollTop = thread.scrollHeight;
     } catch (err) {
       if (!silent) thread.innerHTML = `<div class="muted">${err.message}</div>`;

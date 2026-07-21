@@ -520,11 +520,30 @@ async function findOrCreateConversation({ contactId }) {
   }
 }
 
-function listConversations({ limit } = {}) {
+// GHL caps a single page at 100 and reports the location's real total count
+// -- confirmed live that a shop with a few hundred conversations was
+// silently truncated to just its most-recently-updated 50 when this only
+// fetched one page, hiding every contact whose conversation wasn't in that
+// top slice regardless of which filter tab was selected. Pages forward via
+// `startAfterDate` (confirmed live: no overlap/duplication across the page
+// boundary) until a page comes back short of a full page.
+const CONVERSATIONS_PAGE_SIZE = 100;
+const CONVERSATIONS_MAX_PAGES = 50; // safety cap -- 5,000 conversations
+
+async function listConversations() {
   const { locationId } = config();
-  return request('GET', '/conversations/search', { query: { locationId, limit: limit || 50 } }).then(
-    (d) => d.conversations || []
-  );
+  const all = [];
+  let startAfterDate;
+  for (let page = 0; page < CONVERSATIONS_MAX_PAGES; page++) {
+    const d = await request('GET', '/conversations/search', {
+      query: { locationId, limit: CONVERSATIONS_PAGE_SIZE, startAfterDate },
+    });
+    const batch = d.conversations || [];
+    all.push(...batch);
+    if (batch.length < CONVERSATIONS_PAGE_SIZE) break;
+    startAfterDate = batch[batch.length - 1].lastMessageDate;
+  }
+  return all;
 }
 
 // Mirrors a star/unstar into the shop's real GHL account -- best-effort

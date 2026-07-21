@@ -213,6 +213,16 @@
   .msg-bubble.failed{background:var(--red-soft);color:var(--red)}
   .msg-activity{align-self:center;background:var(--navy-soft);color:var(--navy);font-size:12px;font-weight:600;padding:8px 14px;cursor:pointer;text-align:center;max-width:92%}
   .msg-activity:hover{background:var(--navy);color:#fff}
+  .msg-email{align-self:stretch;max-width:92%;border:1px solid var(--line);background:#fff;font-size:13.5px}
+  .msg-email.outbound{align-self:flex-end}
+  .msg-email.inbound{align-self:flex-start}
+  .msg-email-head{display:flex;justify-content:space-between;gap:10px;padding:9px 13px;background:var(--bg);border-bottom:1px solid var(--line);font-size:12px}
+  .msg-email-head .dir{font-weight:700;color:var(--navy)}
+  .msg-email-head .subj{font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .msg-email-head .mt{color:var(--ink-faint);flex-shrink:0}
+  .msg-email-body{padding:0}
+  .email-body-frame{width:100%;border:none;display:block;min-height:60px}
+  .msg-email-body pre{white-space:pre-wrap;font-family:inherit;padding:12px 13px;margin:0}
   .convo-reply{display:flex;gap:10px;margin-top:14px}
   .convo-reply input{flex:1;padding:11px 14px;border:1px solid var(--line);font-size:14px;font-family:inherit}
   .convo-reply select{padding:11px 12px;border:1px solid var(--line);font-size:13px;font-family:inherit}

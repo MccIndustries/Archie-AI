@@ -11,7 +11,7 @@ router.use(requireAuth, requireConnected);
 router.get('/', async (req, res, next) => {
   try {
     const [conversations, starredIds] = await Promise.all([
-      ghl.listConversations({ limit: 50 }),
+      ghl.listConversations(),
       listStarredIds().catch(() => new Set()),
     ]);
     res.json({ conversations: conversations.map((c) => ({ ...c, starred: starredIds.has(c.id) })) });
