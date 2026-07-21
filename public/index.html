@@ -168,8 +168,8 @@
   .appt-row:hover{background:#fafbfc}
   .appt-row .t{font-weight:700}
 
-  .contact-page{display:grid;grid-template-columns:280px 1fr 300px;gap:16px;height:calc(100vh - 170px);min-height:460px}
-  .cp-col{overflow-y:auto}
+  .contact-page{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;height:calc(100vh - 170px);min-height:460px}
+  .cp-col{overflow-y:auto;min-width:0}
   .cp-details h3{margin-bottom:14px}
   .cp-details label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:12px 0 5px}
   .cp-details input{width:100%;padding:9px 11px;border:1px solid var(--line);font-size:13.5px;font-family:inherit}
@@ -177,10 +177,10 @@
   .cp-convo .convo-thread{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:6px 2px}
   .cp-notes textarea{font-family:inherit}
 
-  .convo-layout{display:grid;grid-template-columns:280px 1fr 300px;gap:16px;height:calc(100vh - 200px);min-height:420px}
-  .convo-list-pane{overflow-y:auto;padding:10px;display:flex;flex-direction:column}
-  .convo-thread-pane{display:flex;flex-direction:column;padding:22px}
-  .convo-contact-pane{overflow-y:auto}
+  .convo-layout{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;height:calc(100vh - 200px);min-height:420px}
+  .convo-list-pane{overflow-y:auto;padding:10px;display:flex;flex-direction:column;min-width:0}
+  .convo-thread-pane{display:flex;flex-direction:column;padding:22px;min-width:0}
+  .convo-contact-pane{overflow-y:auto;min-width:0}
   .convo-filter-tabs{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);padding:4px;margin-bottom:8px;flex-shrink:0}
   .cf-tab{flex:1;padding:7px 0;border:none;background:none;font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer}
   .cf-tab.active{background:var(--navy);color:#fff}
@@ -205,13 +205,13 @@
   .convo-item .cs{font-size:12px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .convo-item .ct{font-size:11px;color:var(--ink-faint)}
   .badge{background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 4px;display:inline-block}
-  .convo-thread{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px 4px}
-  .msg-bubble{max-width:70%;padding:9px 13px;font-size:13.5px;line-height:1.4}
+  .convo-thread{flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:8px;padding:10px 4px;min-width:0}
+  .msg-bubble{max-width:70%;padding:9px 13px;font-size:13.5px;line-height:1.4;overflow-wrap:anywhere;word-break:break-word}
   .msg-bubble.outbound{align-self:flex-end;background:var(--navy);color:#fff}
   .msg-bubble.inbound{align-self:flex-start;background:#f1f3f5;color:var(--ink)}
   .msg-bubble .mt{font-size:10px;opacity:.75;margin-top:4px}
   .msg-bubble.failed{background:var(--red-soft);color:var(--red)}
-  .msg-activity{align-self:center;background:var(--navy-soft);color:var(--navy);font-size:12px;font-weight:600;padding:8px 14px;cursor:pointer;text-align:center;max-width:92%}
+  .msg-activity{align-self:center;background:var(--navy-soft);color:var(--navy);font-size:12px;font-weight:600;padding:8px 14px;cursor:pointer;text-align:center;max-width:92%;overflow-wrap:anywhere;word-break:break-word}
   .msg-activity:hover{background:var(--navy);color:#fff}
   .msg-email{align-self:stretch;max-width:92%;border:1px solid var(--line);background:#fff;font-size:13.5px}
   .msg-email.outbound{align-self:flex-end}
@@ -290,7 +290,15 @@
   .notconnected-banner{background:var(--red-soft);color:var(--red);text-align:center;font-weight:700;font-size:13.5px;padding:10px 16px}
   .gate-disabled{opacity:.5;pointer-events:none;cursor:not-allowed}
 
+  .table-scroll{width:100%;overflow-x:auto}
+
   @media(max-width:900px){ .sidebar{display:none} .appwrap{margin-left:0} }
+  @media(max-width:760px){
+    .wrap{padding:24px 14px 40px}
+    .convo-layout,.contact-page{grid-template-columns:1fr;height:auto;min-height:0}
+    .convo-list-pane,.convo-contact-pane,.cp-details,.cp-notes{height:320px}
+    .convo-thread-pane,.cp-convo{height:520px;padding:16px}
+  }
 </style>
 </head>
 <body>
@@ -389,10 +397,10 @@
         <select id="attentionPipelineSelect" style="max-width:220px"><option value="">All pipelines</option></select>
       </div>
       <p class="csub" style="margin-bottom:14px">Open jobs stuck in the same stage for 10+ days</p>
-      <table>
+      <div class="table-scroll"><table>
         <thead><tr><th>Case #</th><th>Customer</th><th>Job Value</th><th>Stage</th><th>Days In Shop</th></tr></thead>
         <tbody id="attentionBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="card">
@@ -479,10 +487,10 @@
     </div>
     <div class="chiprow" id="contactFilterChips"></div>
     <div class="card" style="margin-top:0">
-      <table>
+      <div class="table-scroll"><table>
         <thead><tr id="contactsHeadRow"><th style="width:32px"><input type="checkbox" id="contactSelectAll" /></th><th>Name</th></tr></thead>
         <tbody id="contactsBody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
   </section>
 
@@ -656,10 +664,10 @@
         <h3>Contacts</h3>
         <button class="btn-secondary" id="exportContactsBtn">Export CSV</button>
       </div>
-      <table>
+      <div class="table-scroll"><table>
         <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th><th>Date Added</th></tr></thead>
         <tbody id="repContactsBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="card">
@@ -671,10 +679,10 @@
         </div>
       </div>
       <div class="stagebar" id="repStageBar" style="margin-bottom:14px"></div>
-      <table>
+      <div class="table-scroll"><table>
         <thead><tr><th>Case #</th><th>Customer</th><th>Vehicle</th><th>Value</th><th>Stage</th></tr></thead>
         <tbody id="repPipelineBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="card">
@@ -682,10 +690,10 @@
         <h3>Sales by Month</h3>
         <button class="btn-secondary" id="exportSalesBtn">Export CSV</button>
       </div>
-      <table>
+      <div class="table-scroll"><table>
         <thead><tr><th>Month</th><th>Revenue</th><th>Jobs Won</th></tr></thead>
         <tbody id="repSalesBody"><tr><td colspan="3" class="loading">Loading…</td></tr></tbody>
-      </table>
+      </table></div>
     </div>
   </section>
 
