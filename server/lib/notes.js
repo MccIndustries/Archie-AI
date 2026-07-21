@@ -12,15 +12,53 @@ function mirrorBody({ source, jobId, body }) {
   return source === 'job' ? `[Job #${jobId}] ${body}` : body;
 }
 
+// Notes added directly in GHL (not through the portal) have no row in our
+// own table at all, so they'd never show up here otherwise -- this is the
+// composite id ("ghl:<contactId>:<ghlNoteId>") used to identify them for
+// later edit/delete, since they have no local uuid to look up by.
+function externalNoteId(contactId, ghlNoteId) {
+  return `ghl:${contactId}:${ghlNoteId}`;
+}
+
+function parseExternalNoteId(id) {
+  const m = /^ghl:([^:]+):(.+)$/.exec(id || '');
+  return m ? { contactId: m[1], ghlNoteId: m[2] } : null;
+}
+
 async function listNotesForContact(contactId) {
-  const { data, error } = await getSupabase()
-    .from('contact_notes')
-    .select('*')
-    .eq('contact_id', contactId)
-    .eq('location_id', locationId())
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+  const [localResult, ghlNotes] = await Promise.all([
+    getSupabase()
+      .from('contact_notes')
+      .select('*')
+      .eq('contact_id', contactId)
+      .eq('location_id', locationId())
+      .order('created_at', { ascending: false }),
+    ghl.listGhlNotes(contactId).catch(() => []),
+  ]);
+  if (localResult.error) throw localResult.error;
+  const local = localResult.data || [];
+
+  // A note created through the portal already has a row here (tracked by
+  // ghl_note_id) -- only notes GHL doesn't already know about via us need
+  // to be synthesized as "external" entries.
+  const trackedGhlIds = new Set(local.map((n) => n.ghl_note_id).filter(Boolean));
+  const external = ghlNotes
+    .filter((gn) => !trackedGhlIds.has(gn.id))
+    .map((gn) => ({
+      id: externalNoteId(contactId, gn.id),
+      created_at: gn.dateAdded,
+      updated_at: gn.dateAdded,
+      location_id: locationId(),
+      contact_id: contactId,
+      job_id: null,
+      source: 'contact',
+      body: gn.body,
+      created_by: null,
+      ghl_note_id: gn.id,
+      external: true,
+    }));
+
+  return [...local, ...external].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
 async function listNotesForJob(jobId) {
@@ -80,6 +118,24 @@ async function getNoteRow(id) {
 }
 
 async function updateNote(id, { body }) {
+  const ext = parseExternalNoteId(id);
+  if (ext) {
+    await ghl.updateGhlNote(ext.contactId, ext.ghlNoteId, body);
+    return {
+      note: {
+        id,
+        body,
+        contact_id: ext.contactId,
+        job_id: null,
+        source: 'contact',
+        ghl_note_id: ext.ghlNoteId,
+        external: true,
+        updated_at: new Date().toISOString(),
+      },
+      warning: null,
+    };
+  }
+
   const row = await getNoteRow(id);
   if (!row) return null;
   const supabase = getSupabase();
@@ -107,6 +163,12 @@ async function updateNote(id, { body }) {
 }
 
 async function deleteNote(id) {
+  const ext = parseExternalNoteId(id);
+  if (ext) {
+    await ghl.deleteGhlNote(ext.contactId, ext.ghlNoteId);
+    return { contact_id: ext.contactId, external: true };
+  }
+
   const row = await getNoteRow(id);
   if (!row) return null;
   if (row.ghl_note_id) {
