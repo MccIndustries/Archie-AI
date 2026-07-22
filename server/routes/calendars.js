@@ -26,6 +26,21 @@ router.get('/appointment/:id', async (req, res, next) => {
   }
 });
 
+// One call for the Active Jobs board's appointment icon: every appointment
+// on the tenant's default calendar in a wide window, grouped client-side by
+// contactId -- cheaper than a per-job-card GHL round trip.
+router.get('/default/appointments', async (req, res, next) => {
+  try {
+    const calendarId = ghl.getDefaultCalendarId();
+    const startTime = (Date.now() - 90 * 24 * 60 * 60 * 1000).toString();
+    const endTime = (Date.now() + 365 * 24 * 60 * 60 * 1000).toString();
+    const appointments = await ghl.listAppointments({ calendarId, startTime, endTime });
+    res.json({ appointments });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id/appointments', async (req, res, next) => {
   try {
     const { start, end } = req.query;

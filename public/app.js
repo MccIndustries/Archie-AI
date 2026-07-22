@@ -1430,9 +1430,38 @@
   });
 
   async function renderBoard() {
-    const jobsRes = await api('/jobs?pipelineId=' + encodeURIComponent(selectedPipelineId));
+    const [jobsRes] = await Promise.all([
+      api('/jobs?pipelineId=' + encodeURIComponent(selectedPipelineId)),
+      loadJobCardWidgetData(),
+    ]);
     jobsCache = jobsRes.jobs || [];
     renderBoardFromCache();
+  }
+
+  // Bulk (one-call-each, not per-card) data behind the conversation/
+  // appointment job-card icons -- reloaded whenever the board is explicitly
+  // (re)loaded, then read synchronously by every card during render.
+  let convosByContactCache = new Map();
+  let apptsByContactCache = new Map();
+  async function loadJobCardWidgetData() {
+    try {
+      const { conversations } = await api('/conversations');
+      convosByContactCache = new Map((conversations || []).map((c) => [c.contactId, c]));
+    } catch {
+      convosByContactCache = new Map();
+    }
+    try {
+      const { appointments } = await api('/calendars/default/appointments');
+      const map = new Map();
+      (appointments || []).forEach((a) => {
+        if (!a.contactId) return;
+        if (!map.has(a.contactId)) map.set(a.contactId, []);
+        map.get(a.contactId).push(a);
+      });
+      apptsByContactCache = map;
+    } catch {
+      apptsByContactCache = new Map();
+    }
   }
 
   // Renders purely from the in-memory jobsCache -- no API call. Used after a
@@ -1446,6 +1475,10 @@
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.5 3.17L3 3v6.5a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z"/><circle cx="7.5" cy="7.5" r="1.5" fill="currentColor" stroke="none"/></svg>';
   const ICON_NOTE =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>';
+  const ICON_CHAT =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>';
+  const ICON_CALENDAR =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
 
   function renderBoardFromCache() {
     const board = document.getElementById('board');
@@ -1489,12 +1522,17 @@
         const displayName = job.customerName || (contact ? contactName(contact) : null) || 'Unknown Contact';
         const vehicle = [job.carMake, job.carModel].filter(Boolean).join(' ');
         const tagCount = (job.tags || []).length;
+        const convo = convosByContactCache.get(job.contactId);
+        const convoUnread = convo?.unreadCount || 0;
+        const apptCount = (apptsByContactCache.get(job.contactId) || []).length;
         card.innerHTML = `
           <div class="jn">${displayName}</div>
           <div class="jc">${vehicle || job.name}</div>
           <div class="jval">Value: ${money(job.value)}</div>
           ${job.damageDescription ? `<div class="jd">${job.damageDescription}</div>` : ''}
           <div class="jcard-icons">
+            <span class="jcard-icon" data-job-convo title="Conversation">${ICON_CHAT}${convoUnread ? `<span class="badge navy">${convoUnread}</span>` : ''}</span>
+            <span class="jcard-icon" data-job-appt title="Appointments">${ICON_CALENDAR}${apptCount ? `<span class="badge navy">${apptCount}</span>` : ''}</span>
             <span class="jcard-icon" data-job-tags title="Tags">${ICON_TAG}${tagCount ? `<span class="badge navy">${tagCount}</span>` : ''}</span>
             <span class="jcard-icon" data-job-notes title="Notes">${ICON_NOTE}<span class="badge navy" data-notes-badge style="display:none">0</span></span>
           </div>
@@ -1506,6 +1544,14 @@
         card.querySelector('[data-job-notes]').addEventListener('click', (e) => {
           e.stopPropagation();
           showNotesPopover(e.currentTarget, job);
+        });
+        card.querySelector('[data-job-convo]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          showConvoPopover(e.currentTarget, job);
+        });
+        card.querySelector('[data-job-appt]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          showApptPopover(e.currentTarget, job);
         });
         card.addEventListener('click', () => openJobDetail(job.id));
         card.addEventListener('dragstart', (e) => {
@@ -1611,6 +1657,61 @@
     } catch (err) {
       if (iconPopoverEl === pop) pop.innerHTML = `<h5>Notes</h5><div class="ip-empty">${escapeHtml(err.message)}</div>`;
     }
+  }
+
+  function showConvoPopover(anchorEl, job) {
+    const convo = convosByContactCache.get(job.contactId);
+    if (!convo) {
+      openIconPopover(anchorEl, 'Conversation', '<div class="ip-empty">No conversation yet.</div>');
+      return;
+    }
+    const time =
+      convo.lastMessageDate && convo.lastMessageBody
+        ? new Date(convo.lastMessageDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '';
+    const preview = convo.lastMessageBody
+      ? escapeHtml(convo.lastMessageBody.length > 160 ? convo.lastMessageBody.slice(0, 160) + '…' : convo.lastMessageBody)
+      : '<span class="muted">No messages yet.</span>';
+    const pop = openIconPopover(
+      anchorEl,
+      'Conversation',
+      `<div class="ip-note">${preview}${time ? `<div class="muted" style="font-size:11px;margin-top:3px">${time}</div>` : ''}</div>
+       <div class="link" data-goto-convo style="margin-top:8px;display:inline-block">View full conversation →</div>`
+    );
+    pop.querySelector('[data-goto-convo]')?.addEventListener('click', async () => {
+      closeIconPopover();
+      switchTab('conversations');
+      await loadConversationsTab();
+      selectConversation(convo.id);
+    });
+  }
+
+  function showApptPopover(anchorEl, job) {
+    const appts = (apptsByContactCache.get(job.contactId) || [])
+      .slice()
+      .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+    if (!appts.length) {
+      openIconPopover(anchorEl, 'Appointments', '<div class="ip-empty">No appointments.</div>');
+      return;
+    }
+    const now = Date.now();
+    const next = appts.find((a) => new Date(a.startTime).getTime() >= now) || appts[appts.length - 1];
+    const time = new Date(next.startTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const pop = openIconPopover(
+      anchorEl,
+      'Appointments',
+      `<div class="ip-note">
+         <strong>${escapeHtml(next.title || 'Appointment')}</strong>
+         <div class="muted" style="font-size:11px;margin-top:3px">${time}</div>
+         ${next.appointmentStatus || next.status ? `<div class="muted" style="font-size:11px;text-transform:capitalize">${escapeHtml(next.appointmentStatus || next.status)}</div>` : ''}
+       </div>
+       ${appts.length > 1 ? `<div class="muted" style="font-size:11.5px;margin-top:6px">+${appts.length - 1} more</div>` : ''}
+       <div class="link" data-goto-appt style="margin-top:8px;display:inline-block">View details →</div>`
+    );
+    pop.querySelector('[data-goto-appt]')?.addEventListener('click', () => {
+      closeIconPopover();
+      openAppointmentDetail(next.id);
+    });
   }
 
   async function moveJobStage(jobId, stageId) {
