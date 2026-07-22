@@ -760,6 +760,7 @@ function toJob(opportunity, fieldIds) {
     name: opportunity.name,
     contactId: opportunity.contactId,
     customerName: opportunity.contact?.name || opportunity.contact?.fullName || null,
+    tags: opportunity.contact?.tags || [],
     pipelineId: opportunity.pipelineId,
     stageId: opportunity.pipelineStageId,
     status: opportunity.status,

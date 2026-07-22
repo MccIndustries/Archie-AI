@@ -1481,12 +1481,25 @@
         const contact = contactsCache.find((c) => c.id === job.contactId);
         const displayName = job.customerName || (contact ? contactName(contact) : null) || 'Unknown Contact';
         const vehicle = [job.carMake, job.carModel].filter(Boolean).join(' ');
+        const tagCount = (job.tags || []).length;
         card.innerHTML = `
           <div class="jn">${displayName}</div>
           <div class="jc">${vehicle || job.name}</div>
           <div class="jval">Value: ${money(job.value)}</div>
           ${job.damageDescription ? `<div class="jd">${job.damageDescription}</div>` : ''}
+          <div class="jcard-icons">
+            <span class="jcard-icon" data-job-tags title="Tags">🏷${tagCount ? `<span class="badge navy">${tagCount}</span>` : ''}</span>
+            <span class="jcard-icon" data-job-notes title="Notes">📝<span class="badge navy" data-notes-badge style="display:none">0</span></span>
+          </div>
         `;
+        card.querySelector('[data-job-tags]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          showTagsPopover(e.currentTarget, job);
+        });
+        card.querySelector('[data-job-notes]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          showNotesPopover(e.currentTarget, job);
+        });
         card.addEventListener('click', () => openJobDetail(job.id));
         card.addEventListener('dragstart', (e) => {
           e.dataTransfer.setData('text/plain', job.id);
@@ -1510,6 +1523,87 @@
       });
       board.appendChild(col);
     });
+    hydrateJobCardNoteBadges();
+  }
+
+  // Notes counts aren't in the opportunity payload GHL already gives us for
+  // free (unlike tags, which ride along on opportunity.contact.tags) -- each
+  // is its own cheap local-only Supabase lookup (no GHL round trip), fired
+  // in parallel after the board's already visible so typing in the job
+  // search box never blocks on them. Cached per job so re-renders triggered
+  // by search/sort/filter don't refire the same fetch; invalidated whenever
+  // a job note is actually added/edited/deleted.
+  const jobNotesCountCache = new Map();
+  function hydrateJobCardNoteBadges() {
+    document.querySelectorAll('.jobcard [data-job-notes]').forEach(async (el) => {
+      const card = el.closest('.jobcard');
+      const jobId = card?.dataset.jobId;
+      if (!jobId) return;
+      const badge = el.querySelector('[data-notes-badge]');
+      if (jobNotesCountCache.has(jobId)) {
+        const count = jobNotesCountCache.get(jobId);
+        if (count) { badge.textContent = count; badge.style.display = 'inline-block'; }
+        return;
+      }
+      try {
+        const { notes } = await api(`/jobs/${jobId}/notes`);
+        jobNotesCountCache.set(jobId, notes.length);
+        if (notes.length) { badge.textContent = notes.length; badge.style.display = 'inline-block'; }
+      } catch {
+        // leave the badge hidden -- a failed count fetch isn't worth a toast
+      }
+    });
+  }
+
+  // ---------- Job card icon popovers (tags / notes) ----------
+  let iconPopoverEl = null;
+  function closeIconPopover() {
+    if (iconPopoverEl) { iconPopoverEl.remove(); iconPopoverEl = null; }
+  }
+  document.addEventListener('click', (e) => {
+    if (iconPopoverEl && !iconPopoverEl.contains(e.target) && !e.target.closest('.jcard-icon')) closeIconPopover();
+  });
+
+  function openIconPopover(anchorEl, title, bodyHtml) {
+    closeIconPopover();
+    const pop = document.createElement('div');
+    pop.className = 'icon-popover';
+    pop.innerHTML = `<h5>${escapeHtml(title)}</h5>${bodyHtml}`;
+    document.body.appendChild(pop);
+    const rect = anchorEl.getBoundingClientRect();
+    let left = Math.min(rect.left, window.innerWidth - pop.offsetWidth - 12);
+    let top = rect.bottom + 6;
+    if (top + pop.offsetHeight > window.innerHeight - 10) top = Math.max(10, rect.top - pop.offsetHeight - 6);
+    pop.style.left = `${Math.max(10, left)}px`;
+    pop.style.top = `${top}px`;
+    iconPopoverEl = pop;
+    return pop;
+  }
+
+  function showTagsPopover(anchorEl, job) {
+    const tags = job.tags || [];
+    const body = tags.length
+      ? `<div>${tags.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join('')}</div>`
+      : '<div class="ip-empty">No tags.</div>';
+    openIconPopover(anchorEl, 'Tags', body);
+  }
+
+  async function showNotesPopover(anchorEl, job) {
+    const pop = openIconPopover(anchorEl, 'Notes', '<div class="ip-empty">Loading…</div>');
+    try {
+      const { notes } = await api(`/jobs/${job.id}/notes`);
+      if (iconPopoverEl !== pop) return; // closed or replaced while this was in flight
+      jobNotesCountCache.set(job.id, notes.length);
+      pop.innerHTML = notes.length
+        ? `<h5>Notes</h5>${notes
+            .map(
+              (n) => `<div class="ip-note">${escapeHtml(n.body.length > 140 ? n.body.slice(0, 140) + '…' : n.body)}<div class="muted" style="font-size:11px;margin-top:3px">${new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div></div>`
+            )
+            .join('')}`
+        : '<h5>Notes</h5><div class="ip-empty">No notes yet.</div>';
+    } catch (err) {
+      if (iconPopoverEl === pop) pop.innerHTML = `<h5>Notes</h5><div class="ip-empty">${escapeHtml(err.message)}</div>`;
+    }
   }
 
   async function moveJobStage(jobId, stageId) {
@@ -1692,6 +1786,7 @@
       }
       document.getElementById('jdNoteForm').style.display = 'none';
       toast(warning || 'Note saved.', Boolean(warning));
+      jobNotesCountCache.delete(activeJobId);
       loadJobNotes(activeJobId);
     } catch (err) {
       toast(err.message, true);
@@ -1703,6 +1798,7 @@
     try {
       await api(`/notes/${id}`, { method: 'DELETE' });
       toast('Note deleted.');
+      jobNotesCountCache.delete(activeJobId);
       loadJobNotes(activeJobId);
     } catch (err) {
       toast(err.message, true);
