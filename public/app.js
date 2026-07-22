@@ -1440,6 +1440,13 @@
   // correct) instead of re-querying GHL's /opportunities/search endpoint,
   // which lags a few seconds behind writes (same eventual-consistency
   // behavior seen on contacts search and freshly created pipelines).
+  // Flat outline SVGs (not emoji) so job-card icons match the rest of the
+  // app's monochrome symbol style instead of clashing as colorful glyphs.
+  const ICON_TAG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.5 3.17L3 3v6.5a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z"/><circle cx="7.5" cy="7.5" r="1.5" fill="currentColor" stroke="none"/></svg>';
+  const ICON_NOTE =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>';
+
   function renderBoardFromCache() {
     const board = document.getElementById('board');
     const pipeline = pipelinesCacheAll.find((p) => p.id === selectedPipelineId);
@@ -1488,8 +1495,8 @@
           <div class="jval">Value: ${money(job.value)}</div>
           ${job.damageDescription ? `<div class="jd">${job.damageDescription}</div>` : ''}
           <div class="jcard-icons">
-            <span class="jcard-icon" data-job-tags title="Tags">🏷${tagCount ? `<span class="badge navy">${tagCount}</span>` : ''}</span>
-            <span class="jcard-icon" data-job-notes title="Notes">📝<span class="badge navy" data-notes-badge style="display:none">0</span></span>
+            <span class="jcard-icon" data-job-tags title="Tags">${ICON_TAG}${tagCount ? `<span class="badge navy">${tagCount}</span>` : ''}</span>
+            <span class="jcard-icon" data-job-notes title="Notes">${ICON_NOTE}<span class="badge navy" data-notes-badge style="display:none">0</span></span>
           </div>
         `;
         card.querySelector('[data-job-tags]').addEventListener('click', (e) => {
