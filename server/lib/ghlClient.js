@@ -620,6 +620,29 @@ function listVoiceAiCallLogs(contactId) {
   return getVoiceAiCallLogsRaw(contactId).then((d) => d.callLogs || []);
 }
 
+// Full location-wide call history for the Dashboard's "Calls Done" KPI
+// detail (not just one page) -- confirmed live that pageSize caps at 50, so
+// this pages through with `page` until a page comes back short of a full
+// page or the reported total is reached.
+const VOICE_AI_CALL_LOGS_PAGE_SIZE = 50;
+const VOICE_AI_CALL_LOGS_MAX_PAGES = 100; // safety cap -- 5,000 calls
+
+async function listAllVoiceAiCallLogs() {
+  const { locationId } = config();
+  const all = [];
+  let total = 0;
+  for (let page = 1; page <= VOICE_AI_CALL_LOGS_MAX_PAGES; page++) {
+    const d = await request('GET', '/voice-ai/dashboard/call-logs', {
+      query: { locationId, page, pageSize: VOICE_AI_CALL_LOGS_PAGE_SIZE },
+    }).catch(() => ({ callLogs: [], total: 0 }));
+    const batch = d.callLogs || [];
+    total = d.total || total;
+    all.push(...batch);
+    if (batch.length < VOICE_AI_CALL_LOGS_PAGE_SIZE || all.length >= total) break;
+  }
+  return { callLogs: all, total };
+}
+
 // Raw audio recording for any call (AI or human-dialed) -- confirmed live to
 // return audio/x-wav. Bypasses the shared JSON `request()` helper since this
 // isn't a JSON response.
@@ -886,6 +909,7 @@ module.exports = {
   deleteGhlNote,
   listVoiceAiCallLogs,
   getVoiceAiCallLogsRaw,
+  listAllVoiceAiCallLogs,
   getCallRecording,
   getMessageTranscription,
   listCalendars,

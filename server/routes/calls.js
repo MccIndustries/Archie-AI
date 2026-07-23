@@ -6,26 +6,23 @@ const requireConnected = require('../middleware/requireConnected');
 const router = express.Router();
 router.use(requireAuth, requireConnected);
 
-// Dashboard's "Calls Done" KPI -- the total count (from GHL's own pagination
-// metadata, no extra call needed) plus the 5 most recent AI-agent-handled
-// calls location-wide (not scoped to one contact), each resolved to its
-// contact's name/phone since the call log itself only carries a bare
-// contactId.
+// Dashboard's "Calls Done" KPI -- every AI-agent-handled call location-wide
+// (not just one page), newest first, each resolved to its contact's
+// name/phone since the call log itself only carries a bare contactId.
+// Contact lookups are deduped by contactId (a Map of in-flight promises) so
+// a contact with several calls only costs one fetch, not one per call.
 router.get('/recent', async (req, res, next) => {
   try {
-    const raw = await ghl.getVoiceAiCallLogsRaw();
-    const logs = (raw.callLogs || [])
-      .slice()
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 5);
+    const { callLogs, total } = await ghl.listAllVoiceAiCallLogs();
+    const sorted = callLogs.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const contactByIdPromise = new Map();
     const calls = await Promise.all(
-      logs.map(async (c) => {
-        let contact = null;
-        try {
-          contact = await ghl.getContact(c.contactId);
-        } catch {
-          // Fall through -- show the call with whatever we already have.
+      sorted.map(async (c) => {
+        if (!contactByIdPromise.has(c.contactId)) {
+          contactByIdPromise.set(c.contactId, ghl.getContact(c.contactId).catch(() => null));
         }
+        const contact = await contactByIdPromise.get(c.contactId);
         return {
           id: c.id,
           messageId: c.messageId,
@@ -38,7 +35,7 @@ router.get('/recent', async (req, res, next) => {
         };
       })
     );
-    res.json({ calls, total: raw.total || 0 });
+    res.json({ calls, total });
   } catch (err) {
     next(err);
   }

@@ -337,9 +337,11 @@
 
   // Feeds the "Calls Done" KPI card -- the count comes from GHL's own
   // pagination total (all AI calls this location has ever logged), while the
-  // 5 most recent calls ride along on the same response and get stashed on
-  // lastDashboardData for openKpiDetail's click-through to use, same as
-  // every other KPI's detail list.
+  // full call list (newest first) rides along on the same response and gets
+  // stashed on lastDashboardData for openKpiDetail's click-through to use,
+  // same as every other KPI's detail list. The KPI modal's own scroll (same
+  // shared .modal max-height as every other KPI detail) handles however
+  // long that list gets.
   async function loadDashboardCallsKpi() {
     const el = document.querySelector('[data-kpi="callsDone"]');
     try {
