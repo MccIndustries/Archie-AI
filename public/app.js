@@ -139,7 +139,6 @@
     closedThisMonth: { title: 'Closed This Month', dataKey: 'closedThisMonthJobs', emptyMsg: 'No jobs closed this month yet.' },
     activeJobs: { title: 'Active Jobs', dataKey: 'activeJobsList', emptyMsg: 'No active jobs right now.' },
     jobsNeedingAttention: { title: 'Jobs Needing Attention', dataKey: 'jobsNeedingAttention', emptyMsg: 'No jobs need attention.', daysCol: true },
-    openSupplements: { title: 'Open Supplements', placeholder: true },
   };
 
   function openKpiDetail(kpiKey) {
