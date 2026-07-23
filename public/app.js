@@ -140,8 +140,6 @@
     activeJobs: { title: 'Active Jobs', dataKey: 'activeJobsList', emptyMsg: 'No active jobs right now.' },
     jobsNeedingAttention: { title: 'Jobs Needing Attention', dataKey: 'jobsNeedingAttention', emptyMsg: 'No jobs need attention.', daysCol: true },
     openSupplements: { title: 'Open Supplements', placeholder: true },
-    callsRecovered: { title: 'Calls Recovered', placeholder: true },
-    reviewsGenerated: { title: 'Reviews Generated', placeholder: true },
   };
 
   function openKpiDetail(kpiKey) {

@@ -52,7 +52,7 @@
   .rbtn.active{background:var(--navy-soft);color:var(--navy)}
   .rangebar input[type=date]{padding:7px 9px;border:1px solid var(--line);font-size:13px;font-family:inherit}
 
-  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
   .kpi{background:var(--card);border:1px solid var(--line);padding:18px;box-shadow:var(--shadow);position:relative}
   .kpi .ic{width:34px;height:34px;display:grid;place-items:center;font-size:16px;margin-bottom:12px;font-weight:800}
   .kpi .ic.navy{background:var(--navy-soft);color:var(--navy)}
@@ -104,7 +104,8 @@
 
   .empty-panel{color:var(--ink-faint);font-size:13.5px;padding:26px 0;text-align:center}
 
-  @media(max-width:1100px){ .kpis{grid-template-columns:repeat(2,1fr)} .dash-2col{grid-template-columns:1fr} }
+  @media(max-width:900px){ .kpis{grid-template-columns:repeat(2,1fr)} }
+  @media(max-width:1100px){ .dash-2col{grid-template-columns:1fr} }
 
   .pipeline-label{font-weight:800;font-size:15px;color:var(--navy);white-space:nowrap}
   .toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap}
@@ -302,6 +303,8 @@
   .gate-disabled{opacity:.5;pointer-events:none;cursor:not-allowed}
 
   .table-scroll{width:100%;overflow-x:auto}
+  .attention-scroll{max-height:320px;overflow-y:auto}
+  .attention-scroll thead th{position:sticky;top:0;background:var(--card);z-index:1}
 
   @media(max-width:900px){ .sidebar{display:none} .appwrap{margin-left:0} }
   @media(max-width:760px){
@@ -328,12 +331,8 @@
     <button class="navitem" data-tab="calendar"><span class="ic">▦</span>Calendar</button>
     <button class="navitem" data-tab="new-intake"><span class="ic">＋</span>New Intake</button>
     <button class="navitem" data-tab="conversations"><span class="ic">✦</span>Conversations</button>
-    <button class="navitem" data-tab="missed-calls"><span class="ic">☎</span>Missed Calls</button>
-    <button class="navitem" data-tab="estimates"><span class="ic">▧</span>Estimates</button>
-    <button class="navitem" data-tab="reviews"><span class="ic">★</span>Reviews</button>
     <button class="navitem" data-tab="reporting"><span class="ic">▥</span>Monthly Report</button>
     <button class="navitem" data-tab="contacts"><span class="ic">☺</span>Contacts</button>
-    <button class="navitem" data-tab="settings"><span class="ic">⚙</span>Settings</button>
   </nav>
   <div class="sidebar-bottom">
     <span class="semail" id="userEmail"></span>
@@ -392,14 +391,6 @@
         <div class="ic red">⚠</div>
         <div class="val" data-kpi="jobsNeedingAttention">–</div><div class="lab">Jobs Needing Attention</div>
       </div>
-      <div class="kpi" data-kpi-card="callsRecovered">
-        <div class="ic amber">☎</div>
-        <div class="val placeholder" data-kpi="callsRecovered">—</div><div class="lab">Calls Recovered</div>
-      </div>
-      <div class="kpi" data-kpi-card="reviewsGenerated">
-        <div class="ic amber">★</div>
-        <div class="val placeholder" data-kpi="reviewsGenerated">—</div><div class="lab">Reviews Generated</div>
-      </div>
     </div>
 
     <div class="card">
@@ -408,7 +399,7 @@
         <select id="attentionPipelineSelect" style="max-width:220px"><option value="">All pipelines</option></select>
       </div>
       <p class="csub" style="margin-bottom:14px">Open jobs stuck in the same stage for 10+ days</p>
-      <div class="table-scroll"><table>
+      <div class="table-scroll attention-scroll"><table>
         <thead><tr><th>Case #</th><th>Customer</th><th>Job Value</th><th>Stage</th><th>Days In Shop</th></tr></thead>
         <tbody id="attentionBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
       </table></div>
@@ -633,30 +624,6 @@
     </div>
   </section>
 
-  <!-- MISSED CALLS (placeholder) -->
-  <section class="section" id="tab-missed-calls">
-    <h1 class="page-title">Missed Calls</h1>
-    <div class="card" style="margin-top:0">
-      <div class="empty-panel">Coming Soon</div>
-    </div>
-  </section>
-
-  <!-- ESTIMATES (placeholder) -->
-  <section class="section" id="tab-estimates">
-    <h1 class="page-title">Estimates</h1>
-    <div class="card" style="margin-top:0">
-      <div class="empty-panel">Coming Soon</div>
-    </div>
-  </section>
-
-  <!-- REVIEWS (placeholder) -->
-  <section class="section" id="tab-reviews">
-    <h1 class="page-title">Reviews</h1>
-    <div class="card" style="margin-top:0">
-      <div class="empty-panel">Coming Soon</div>
-    </div>
-  </section>
-
   <!-- MONTHLY REPORT -->
   <section class="section" id="tab-reporting">
     <h1 class="page-title">Monthly Report</h1>
@@ -780,14 +747,6 @@
         </div>
         <div id="convoContactBody"><div class="muted" style="font-size:13px">Select a conversation.</div></div>
       </div>
-    </div>
-  </section>
-
-  <!-- SETTINGS (placeholder) -->
-  <section class="section" id="tab-settings">
-    <h1 class="page-title">Settings</h1>
-    <div class="card" style="margin-top:0">
-      <div class="empty-panel">Coming Soon</div>
     </div>
   </section>
 
