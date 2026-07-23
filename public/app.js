@@ -139,6 +139,7 @@
     closedThisMonth: { title: 'Closed This Month', dataKey: 'closedThisMonthJobs', emptyMsg: 'No jobs closed this month yet.' },
     activeJobs: { title: 'Active Jobs', dataKey: 'activeJobsList', emptyMsg: 'No active jobs right now.' },
     jobsNeedingAttention: { title: 'Jobs Needing Attention', dataKey: 'jobsNeedingAttention', emptyMsg: 'No jobs need attention.', daysCol: true },
+    callsDone: { title: 'Calls Done', dataKey: 'recentCalls', emptyMsg: 'No AI calls yet.', type: 'calls' },
   };
 
   function openKpiDetail(kpiKey) {
@@ -153,13 +154,42 @@
       return;
     }
 
-    const jobs = (lastDashboardData && lastDashboardData[cfg.dataKey]) || [];
-    if (!jobs.length) {
+    const items = (lastDashboardData && lastDashboardData[cfg.dataKey]) || [];
+    if (!items.length) {
       body.innerHTML = `<div class="empty-panel">${cfg.emptyMsg}</div>`;
       openModal('kpiDetailModal');
       return;
     }
 
+    if (cfg.type === 'calls') {
+      body.innerHTML = items
+        .map(
+          (c) => `
+        <div class="dash-row" data-open-kpi-call="${c.id}">
+          <div><div class="name">${escapeHtml(c.contactName || c.phone || 'Unknown')}</div><div class="sub">${escapeHtml(c.summary ? c.summary.slice(0, 90) + (c.summary.length > 90 ? '…' : '') : '')}</div></div>
+          <div class="sub">${new Date(c.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+        </div>`
+        )
+        .join('');
+      body.querySelectorAll('[data-open-kpi-call]').forEach((row) => {
+        const call = items.find((c) => c.id === row.dataset.openKpiCall);
+        row.addEventListener('click', () => {
+          closeModal('kpiDetailModal');
+          openCallDetail({
+            messageId: call.messageId,
+            contactId: call.contactId,
+            direction: null,
+            status: null,
+            duration: call.duration,
+            dateAdded: call.createdAt,
+          });
+        });
+      });
+      openModal('kpiDetailModal');
+      return;
+    }
+
+    const jobs = items;
     body.innerHTML = `
       <table>
         <thead><tr><th>Case #</th><th>Customer</th><th>Vehicle</th><th>Value</th><th>Stage</th>${cfg.daysCol ? '<th>Days In Stage</th>' : ''}</tr></thead>
@@ -247,7 +277,7 @@
         .join('') || '<span class="muted">No upcoming appointments.</span>';
 
       loadDashboardUnreadConvos();
-      loadDashboardRecentCalls();
+      loadDashboardCallsKpi();
 
       const attentionBody = document.getElementById('attentionBody');
       attentionBody.innerHTML = '';
@@ -305,36 +335,19 @@
     }
   }
 
-  async function loadDashboardRecentCalls() {
-    const box = document.getElementById('dashRecentCalls');
+  // Feeds the "Calls Done" KPI card -- the count comes from GHL's own
+  // pagination total (all AI calls this location has ever logged), while the
+  // 5 most recent calls ride along on the same response and get stashed on
+  // lastDashboardData for openKpiDetail's click-through to use, same as
+  // every other KPI's detail list.
+  async function loadDashboardCallsKpi() {
+    const el = document.querySelector('[data-kpi="callsDone"]');
     try {
-      const { calls } = await api('/calls/recent');
-      box.innerHTML = calls.length
-        ? calls
-            .map(
-              (c) => `
-        <div class="dash-row" data-call-row="${c.id}">
-          <div><div class="name">${escapeHtml(c.contactName || c.phone || 'Unknown')}</div><div class="sub">${escapeHtml(c.summary ? c.summary.slice(0, 70) + (c.summary.length > 70 ? '…' : '') : '')}</div></div>
-          <div class="sub">${new Date(c.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-        </div>`
-            )
-            .join('')
-        : '<span class="muted">No AI calls yet.</span>';
-      box.querySelectorAll('[data-call-row]').forEach((el) => {
-        const call = calls.find((c) => c.id === el.dataset.callRow);
-        el.addEventListener('click', () =>
-          openCallDetail({
-            messageId: call.messageId,
-            contactId: call.contactId,
-            direction: null,
-            status: null,
-            duration: call.duration,
-            dateAdded: call.createdAt,
-          })
-        );
-      });
-    } catch (err) {
-      box.innerHTML = `<span class="muted">${err.message}</span>`;
+      const { calls, total } = await api('/calls/recent');
+      if (lastDashboardData) lastDashboardData.recentCalls = calls;
+      el.textContent = total;
+    } catch {
+      el.textContent = '–';
     }
   }
 

@@ -6,12 +6,15 @@ const requireConnected = require('../middleware/requireConnected');
 const router = express.Router();
 router.use(requireAuth, requireConnected);
 
-// Dashboard's "Calls Done" widget -- most recent AI-agent-handled calls
-// location-wide (not scoped to one contact), each resolved to its contact's
-// name/phone since the call log itself only carries a bare contactId.
+// Dashboard's "Calls Done" KPI -- the total count (from GHL's own pagination
+// metadata, no extra call needed) plus the 5 most recent AI-agent-handled
+// calls location-wide (not scoped to one contact), each resolved to its
+// contact's name/phone since the call log itself only carries a bare
+// contactId.
 router.get('/recent', async (req, res, next) => {
   try {
-    const logs = (await ghl.listVoiceAiCallLogs())
+    const raw = await ghl.getVoiceAiCallLogsRaw();
+    const logs = (raw.callLogs || [])
       .slice()
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 5);
@@ -35,7 +38,7 @@ router.get('/recent', async (req, res, next) => {
         };
       })
     );
-    res.json({ calls });
+    res.json({ calls, total: raw.total || 0 });
   } catch (err) {
     next(err);
   }

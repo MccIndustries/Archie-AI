@@ -608,11 +608,16 @@ function deleteGhlNote(contactId, noteId) {
 // against a real production location: matched back to the conversation's
 // TYPE_CALL message via the call log's own `messageId` field. Best-effort --
 // locations without Voice AI configured simply have no logs to find.
-function listVoiceAiCallLogs(contactId) {
+function getVoiceAiCallLogsRaw(contactId) {
   const { locationId } = config();
-  return request('GET', '/voice-ai/dashboard/call-logs', { query: { locationId, contactId } })
-    .then((d) => d.callLogs || [])
-    .catch(() => []);
+  return request('GET', '/voice-ai/dashboard/call-logs', { query: { locationId, contactId } }).catch(() => ({
+    callLogs: [],
+    total: 0,
+  }));
+}
+
+function listVoiceAiCallLogs(contactId) {
+  return getVoiceAiCallLogsRaw(contactId).then((d) => d.callLogs || []);
 }
 
 // Raw audio recording for any call (AI or human-dialed) -- confirmed live to
@@ -880,6 +885,7 @@ module.exports = {
   updateGhlNote,
   deleteGhlNote,
   listVoiceAiCallLogs,
+  getVoiceAiCallLogsRaw,
   getCallRecording,
   getMessageTranscription,
   listCalendars,
