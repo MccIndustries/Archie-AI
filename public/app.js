@@ -247,8 +247,6 @@
         .join('') || '<span class="muted">No upcoming appointments.</span>';
 
       loadDashboardUnreadConvos();
-      renderCallsFollowUps();
-      renderSystemActivity();
 
       const attentionBody = document.getElementById('attentionBody');
       attentionBody.innerHTML = '';
@@ -273,18 +271,6 @@
     } catch (err) {
       toast(err.message, true);
     }
-  }
-
-  // No call-tracking/automation backend exists yet for this account -- shows
-  // a clean empty state rather than fabricated rows until that's built.
-  function renderCallsFollowUps() {
-    document.getElementById('callsFollowUps').innerHTML =
-      '<div class="empty-panel">No call activity tracked yet for this account.</div>';
-  }
-
-  function renderSystemActivity() {
-    document.getElementById('systemActivity').innerHTML =
-      '<div class="empty-panel">No automated activity tracked yet for this account.</div>';
   }
 
   async function loadDashboardUnreadConvos() {
