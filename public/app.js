@@ -247,6 +247,7 @@
         .join('') || '<span class="muted">No upcoming appointments.</span>';
 
       loadDashboardUnreadConvos();
+      loadDashboardRecentCalls();
 
       const attentionBody = document.getElementById('attentionBody');
       attentionBody.innerHTML = '';
@@ -298,6 +299,39 @@
           await loadConversationsTab();
           selectConversation(el.dataset.convoJump);
         });
+      });
+    } catch (err) {
+      box.innerHTML = `<span class="muted">${err.message}</span>`;
+    }
+  }
+
+  async function loadDashboardRecentCalls() {
+    const box = document.getElementById('dashRecentCalls');
+    try {
+      const { calls } = await api('/calls/recent');
+      box.innerHTML = calls.length
+        ? calls
+            .map(
+              (c) => `
+        <div class="dash-row" data-call-row="${c.id}">
+          <div><div class="name">${escapeHtml(c.contactName || c.phone || 'Unknown')}</div><div class="sub">${escapeHtml(c.summary ? c.summary.slice(0, 70) + (c.summary.length > 70 ? '…' : '') : '')}</div></div>
+          <div class="sub">${new Date(c.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+        </div>`
+            )
+            .join('')
+        : '<span class="muted">No AI calls yet.</span>';
+      box.querySelectorAll('[data-call-row]').forEach((el) => {
+        const call = calls.find((c) => c.id === el.dataset.callRow);
+        el.addEventListener('click', () =>
+          openCallDetail({
+            messageId: call.messageId,
+            contactId: call.contactId,
+            direction: null,
+            status: null,
+            duration: call.duration,
+            dateAdded: call.createdAt,
+          })
+        );
       });
     } catch (err) {
       box.innerHTML = `<span class="muted">${err.message}</span>`;
@@ -2213,6 +2247,27 @@
     document.getElementById('cdRecordingWrap').style.display = 'none';
     document.getElementById('cdSummaryWrap').style.display = 'none';
     document.getElementById('cdTranscript').innerHTML = '<span class="muted">Loading…</span>';
+
+    const contactWrap = document.getElementById('cdContactWrap');
+    const contactBox = document.getElementById('cdContact');
+    if (call.contactId) {
+      contactWrap.style.display = 'block';
+      contactBox.innerHTML = '<span class="muted">Loading contact…</span>';
+      api(`/contacts/${call.contactId}`)
+        .then(({ contact }) => {
+          contactBox.innerHTML = `
+            <div style="font-weight:700">${escapeHtml(contactName(contact))}</div>
+            <div class="muted">${escapeHtml(contact.email || '—')}</div>
+            <div class="muted">${escapeHtml(contact.phone || '—')}</div>
+            ${(contact.tags || []).map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join('')}
+          `;
+        })
+        .catch((err) => {
+          contactBox.innerHTML = `<span class="muted">Could not load contact: ${escapeHtml(err.message)}</span>`;
+        });
+    } else {
+      contactWrap.style.display = 'none';
+    }
 
     openModal('callDetailModal');
 

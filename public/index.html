@@ -79,7 +79,7 @@
   .stagechip .n{font-size:19px;font-weight:800;display:block}
   .stagechip .v{font-size:11.5px;font-weight:600;opacity:.8;display:block;margin-top:2px}
 
-  .dash-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+  .dash-2col{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
   .dash-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer}
   .dash-row:last-child{border-bottom:none}
   .dash-row:hover{background:#fafbfc}
@@ -105,7 +105,8 @@
   .empty-panel{color:var(--ink-faint);font-size:13.5px;padding:26px 0;text-align:center}
 
   @media(max-width:900px){ .kpis{grid-template-columns:repeat(2,1fr)} }
-  @media(max-width:1100px){ .dash-2col{grid-template-columns:1fr} }
+  @media(max-width:1300px){ .dash-2col{grid-template-columns:repeat(2,1fr)} }
+  @media(max-width:760px){ .dash-2col{grid-template-columns:1fr} }
 
   .pipeline-label{font-weight:800;font-size:15px;color:var(--navy);white-space:nowrap}
   .toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:16px;flex-wrap:wrap}
@@ -415,6 +416,12 @@
           <span class="link" data-tab-link="calendar">View all</span>
         </div>
         <div id="dashUpcomingAppts"><div class="loading">Loading…</div></div>
+      </div>
+      <div class="card" style="margin-top:0">
+        <div class="sec-head">
+          <h3>Calls Done</h3>
+        </div>
+        <div id="dashRecentCalls"><div class="loading">Loading…</div></div>
       </div>
     </div>
 
@@ -876,6 +883,10 @@
     <div class="modal-head">
       <h3 id="cdTitle">Call</h3>
       <button type="button" class="modal-x" data-close="callDetailModal" aria-label="Close">&times;</button>
+    </div>
+    <div id="cdContactWrap" style="display:none">
+      <label>Contact</label>
+      <div id="cdContact"></div>
     </div>
     <label>Date &amp; Time</label>
     <div id="cdTime" style="font-size:14px"></div>

@@ -6,6 +6,41 @@ const requireConnected = require('../middleware/requireConnected');
 const router = express.Router();
 router.use(requireAuth, requireConnected);
 
+// Dashboard's "Calls Done" widget -- most recent AI-agent-handled calls
+// location-wide (not scoped to one contact), each resolved to its contact's
+// name/phone since the call log itself only carries a bare contactId.
+router.get('/recent', async (req, res, next) => {
+  try {
+    const logs = (await ghl.listVoiceAiCallLogs())
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5);
+    const calls = await Promise.all(
+      logs.map(async (c) => {
+        let contact = null;
+        try {
+          contact = await ghl.getContact(c.contactId);
+        } catch {
+          // Fall through -- show the call with whatever we already have.
+        }
+        return {
+          id: c.id,
+          messageId: c.messageId,
+          contactId: c.contactId,
+          contactName: contact ? [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.name : null,
+          phone: contact?.phone || c.fromNumber || null,
+          duration: c.duration,
+          summary: c.summary,
+          createdAt: c.createdAt,
+        };
+      })
+    );
+    res.json({ calls });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Everything the call detail popup needs beyond what's already on the
 // conversation thread's own message (direction/duration/status): the Voice
 // AI summary/transcript/extracted-data if an AI agent handled the call, plus
