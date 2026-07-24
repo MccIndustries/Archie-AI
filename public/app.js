@@ -58,6 +58,11 @@
     item.classList.add('active');
     document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
     document.getElementById('tab-' + tab).classList.add('active');
+    // The Jobs board benefits from every pixel of the viewport (more stage
+    // columns visible without scrolling, and zooming out actually reveals
+    // more of them) -- every other tab keeps the page's normal centered
+    // max-width, which reads better for text-heavy content.
+    document.querySelector('.wrap').classList.toggle('wrap-full', tab === 'jobs');
     if (tab === 'dashboard') loadDashboard();
     if (tab === 'contacts') { loadContactTags(); loadContacts(); loadSmartLists(); }
     if (tab === 'jobs') loadJobsTab();
