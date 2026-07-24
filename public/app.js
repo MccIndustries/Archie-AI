@@ -80,6 +80,15 @@
     return /^won$/i.test((name || '').trim()) ? 'Completed' : name;
   }
 
+  // GHL's real opportunity id is a 20-char random string -- fine as the
+  // actual identifier (used everywhere for lookups/clicks unchanged), but
+  // ugly as a displayed "case number". Shows just the last 6 characters,
+  // uppercased, purely cosmetic -- every click handler still keys off the
+  // full id via data attributes, never this shortened text.
+  function shortCaseId(id) {
+    return id ? String(id).slice(-6).toUpperCase() : '';
+  }
+
   document.addEventListener('click', (e) => {
     const link = e.target.closest('[data-tab-link]');
     if (link) switchTab(link.dataset.tabLink);
@@ -198,7 +207,7 @@
             .map(
               (j) => `
           <tr class="rowlink" data-open-kpi-job="${j.id}">
-            <td>#${j.id}</td>
+            <td>#${shortCaseId(j.id)}</td>
             <td>${j.customerName || '—'}</td>
             <td>${[j.carMake, j.carModel].filter(Boolean).join(' ') || '—'}</td>
             <td>${money(j.value)}</td>
@@ -289,7 +298,7 @@
           const tr = document.createElement('tr');
           tr.className = 'rowlink';
           tr.innerHTML = `
-            <td>#${j.id}</td>
+            <td>#${shortCaseId(j.id)}</td>
             <td>${j.customerName || '—'}${vehicle ? `<div class="muted" style="font-size:12px">${vehicle}</div>` : ''}</td>
             <td>${money(j.value)}</td>
             <td>${displayStageName(j.stageName) || '—'}</td>
@@ -1061,7 +1070,7 @@
         .map(
           (j) => `
         <div class="dash-row" data-open-job="${j.id}">
-          <div><div class="name">Case #${j.id}</div><div class="sub">${[j.carMake, j.carModel].filter(Boolean).join(' ') || j.name || ''}</div></div>
+          <div><div class="name">Case #${shortCaseId(j.id)}</div><div class="sub">${[j.carMake, j.carModel].filter(Boolean).join(' ') || j.name || ''}</div></div>
           <span class="status-badge ${jobStatusBadgeClass(j.status)}">${displayStageName(j.stageName) || j.status}</span>
         </div>`
         )
@@ -1816,7 +1825,7 @@
     activeJobId = jobId;
     activeJobContactId = cached?.contactId || null;
 
-    document.getElementById('jdCase').textContent = `Case #${jobId}`;
+    document.getElementById('jdCase').textContent = `Case #${shortCaseId(jobId)}`;
     const statusSel = document.getElementById('jdStatus');
     statusSel.value = cached?.status || 'open';
     statusSel.onchange = (e) => updateJobStatus(jobId, e.target.value);
@@ -2430,7 +2439,7 @@
           .map(
             (j) => `
       <tr>
-        <td>#${j.id}</td>
+        <td>#${shortCaseId(j.id)}</td>
         <td>${j.customerName || '—'}</td>
         <td>${[j.carMake, j.carModel].filter(Boolean).join(' ') || '—'}</td>
         <td>${money(j.value)}</td>
@@ -2770,7 +2779,7 @@
                 .map(
                   (j) => `
           <div class="dash-row" data-open-job="${j.id}">
-            <div><div class="name">Case #${j.id}</div><div class="sub">${[j.carMake, j.carModel].filter(Boolean).join(' ') || j.name || ''}</div></div>
+            <div><div class="name">Case #${shortCaseId(j.id)}</div><div class="sub">${[j.carMake, j.carModel].filter(Boolean).join(' ') || j.name || ''}</div></div>
             <span class="status-badge ${jobStatusBadgeClass(j.status)}">${displayStageName(j.stageName) || j.status}</span>
           </div>`
                 )
