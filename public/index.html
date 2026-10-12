@@ -314,6 +314,57 @@
     .convo-list-pane,.convo-contact-pane,.cp-details,.cp-notes{height:320px}
     .convo-thread-pane,.cp-convo{height:520px;padding:16px}
   }
+
+  /* ---------- Calendar (week / day grid) ---------- */
+  .cal-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .cal-toolbar-left,.cal-toolbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .cal-btn{padding:9px 16px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:13px;color:var(--ink);cursor:pointer}
+  .cal-btn:hover{background:var(--navy-soft);color:var(--navy)}
+  .cal-range{display:flex;align-items:center;background:#fff;border:1px solid var(--line)}
+  .cal-arrow{width:34px;height:36px;border:none;background:none;font-size:20px;line-height:1;color:var(--ink-soft);cursor:pointer}
+  .cal-arrow:hover{background:var(--navy-soft);color:var(--navy)}
+  .cal-range-label{min-width:170px;text-align:center;font-weight:700;font-size:13.5px;padding:0 6px}
+  .cal-date{padding:8px 10px;border:1px solid var(--line);font-size:13px;font-family:inherit;background:#fff;color:var(--ink)}
+  .cal-select{padding:9px 12px;border:1px solid var(--line);font-size:13px;font-family:inherit;background:#fff;max-width:260px}
+  .cal-viewtoggle{display:flex;background:#fff;border:1px solid var(--line);padding:3px}
+  .cal-viewtoggle button{padding:6px 14px;border:none;background:none;font-size:13px;font-weight:700;color:var(--ink-soft);cursor:pointer}
+  .cal-viewtoggle button.active{background:var(--navy-soft);color:var(--navy)}
+  .cal-card{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
+  .cal-scroll{max-height:calc(100vh - 250px);min-height:420px;overflow:auto;position:relative}
+  .cal-scroll > .loading,.cal-scroll > .muted{padding:40px 20px;text-align:center}
+  .cal-grid{display:grid;min-width:760px}
+  .cal-grid.day-view{min-width:0}
+  .cal-head{position:sticky;top:0;z-index:4;background:#fff;border-bottom:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;gap:2px}
+  .cal-head .dow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-faint)}
+  .cal-head .dnum{font-size:20px;font-weight:800;color:var(--ink);min-width:34px;height:34px;line-height:34px;text-align:center}
+  .cal-head.today .dow{color:var(--navy)}
+  .cal-head.today .dnum{background:var(--navy);color:#fff}
+  .cal-head.past .dnum{color:var(--ink-faint)}
+  .cal-corner{position:sticky;top:0;left:0;z-index:6;background:#fff;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:10.5px;font-weight:700;color:var(--ink-faint);display:flex;align-items:flex-end;justify-content:center;padding:0 4px 8px;text-align:center}
+  .cal-gutter{position:sticky;left:0;z-index:3;background:#fff;border-right:1px solid var(--line)}
+  .cal-hour-label{position:absolute;right:8px;font-size:11px;font-weight:600;color:var(--ink-faint);transform:translateY(-50%);white-space:nowrap}
+  .cal-col{position:relative;border-right:1px solid var(--line)}
+  .cal-col:last-child{border-right:none}
+  .cal-col.today{background:#f7f9fc}
+  .cal-line{position:absolute;left:0;right:0;border-top:1px solid #eceff3}
+  .cal-line.half{border-top:1px dashed #f1f3f6}
+  .cal-event{position:absolute;padding:3px 7px;font-size:12px;line-height:1.25;overflow:hidden;cursor:pointer;border-left:3px solid;box-shadow:0 1px 2px rgba(20,30,45,.08);transition:box-shadow .12s,transform .12s;z-index:2}
+  .cal-event:hover{box-shadow:0 4px 12px rgba(20,30,45,.18);z-index:5}
+  .cal-event .ev-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cal-event .ev-time{font-size:11px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cal-event.compact{padding:2px 6px;display:flex;gap:6px;align-items:center}
+  .cal-event.compact .ev-title{flex:1;min-width:0}
+  .cal-event.compact .ev-time{flex-shrink:1;min-width:0}
+  .st-confirmed{background:#e3eefc;border-color:#1d6fd8;color:#0f3d7a}
+  .st-new{background:var(--amber-soft);border-color:var(--amber);color:#6b4700}
+  .st-showed{background:var(--green-soft);border-color:var(--green);color:#11472a}
+  .st-cancelled{background:#f2f3f5;border-color:#a3adba;color:#6b7785}
+  .st-cancelled .ev-title{text-decoration:line-through}
+  .cal-legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--ink-soft);font-weight:600}
+  .cal-legend span{display:inline-flex;align-items:center;gap:6px}
+  .cal-dot{display:inline-block;width:12px;height:12px;border-left:3px solid}
+  .cal-empty-note{position:absolute;left:50%;top:90px;transform:translateX(-50%);background:#fff;border:1px solid var(--line);padding:8px 14px;font-size:12.5px;color:var(--ink-soft);font-weight:600;z-index:3;white-space:nowrap}
+  @media(max-width:760px){ .cal-range-label{min-width:120px;font-size:12.5px} .cal-scroll{max-height:calc(100vh - 300px)} }
 </style>
 </head>
 <body>
@@ -591,13 +642,32 @@
   <!-- CALENDAR -->
   <section class="section" id="tab-calendar">
     <h1 class="page-title">Calendar</h1>
-    <div class="toolbar">
-      <select id="calendarSelect" style="max-width:260px"></select>
-      <input type="date" id="calendarDate" />
+    <div class="cal-toolbar">
+      <div class="cal-toolbar-left">
+        <button type="button" class="cal-btn" id="calToday">Today</button>
+        <div class="cal-range">
+          <button type="button" class="cal-arrow" id="calPrev" aria-label="Previous">&#8249;</button>
+          <span class="cal-range-label" id="calRangeLabel"></span>
+          <button type="button" class="cal-arrow" id="calNext" aria-label="Next">&#8250;</button>
+        </div>
+        <input type="date" id="calendarDate" class="cal-date" title="Jump to date" />
+      </div>
+      <div class="cal-toolbar-right">
+        <div class="cal-viewtoggle" id="calViewToggle">
+          <button type="button" data-calview="day">Day</button>
+          <button type="button" data-calview="week" class="active">Week</button>
+        </div>
+        <select id="calendarSelect" class="cal-select"></select>
+      </div>
     </div>
-    <div class="card" style="margin-top:0">
-      <h3>Booked appointments</h3>
-      <div id="appointmentsList"><div class="loading">Loading…</div></div>
+    <div class="cal-card">
+      <div id="appointmentsList" class="cal-scroll"><div class="loading">Loading…</div></div>
+    </div>
+    <div class="cal-legend">
+      <span><i class="cal-dot st-confirmed"></i>Confirmed</span>
+      <span><i class="cal-dot st-new"></i>New</span>
+      <span><i class="cal-dot st-showed"></i>Showed</span>
+      <span><i class="cal-dot st-cancelled"></i>Cancelled / No-show</span>
     </div>
   </section>
 

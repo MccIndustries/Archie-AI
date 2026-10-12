@@ -2047,17 +2047,116 @@
           ? calendarsCache.map((c) => `<option value="${c.id}">${c.name}</option>`).join('')
           : '<option value="">No calendars found</option>';
       }
-      // No default date -- an empty date field means "show everything."
       await loadAppointments();
     } catch (err) {
       list.innerHTML = `<div class="muted">${err.message}</div>`;
     }
   }
 
+  // Week / day grid. The date input is the anchor ("jump to date"); prev /
+  // next / Today just move it. Blocks are placed by the appointment's
+  // booked wall-clock time (parseIsoParts), the same time the detail popup
+  // shows, so the grid and the popup always agree.
+  const CAL_HOUR_PX = 72;
+  let calView = window.matchMedia('(max-width:760px)').matches ? 'day' : 'week';
+
+  function calToday() {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  }
+  function calYmd(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function calAnchor() {
+    const v = document.getElementById('calendarDate').value;
+    return v ? new Date(v + 'T00:00:00') : calToday();
+  }
+  function calDays() {
+    const a = calAnchor();
+    if (calView === 'day') return [a];
+    const sun = new Date(a.getFullYear(), a.getMonth(), a.getDate() - a.getDay());
+    return Array.from({ length: 7 }, (_, i) => new Date(sun.getFullYear(), sun.getMonth(), sun.getDate() + i));
+  }
+  function calRangeLabel(days) {
+    const f = days[0];
+    const l = days[days.length - 1];
+    if (days.length === 1) return f.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const fm = f.toLocaleDateString(undefined, { month: 'short' });
+    const lm = l.toLocaleDateString(undefined, { month: 'short' });
+    if (f.getFullYear() !== l.getFullYear()) return `${fm} ${f.getDate()}, ${f.getFullYear()} – ${lm} ${l.getDate()}, ${l.getFullYear()}`;
+    if (fm === lm) return `${fm} ${f.getDate()} – ${l.getDate()}, ${l.getFullYear()}`;
+    return `${fm} ${f.getDate()} – ${lm} ${l.getDate()}, ${l.getFullYear()}`;
+  }
+  function calStatusClass(a) {
+    const s = String(a.appointmentStatus || a.status || '').toLowerCase();
+    if (s === 'showed') return 'st-showed';
+    if (s === 'new') return 'st-new';
+    if (s === 'cancelled' || s === 'noshow' || s === 'invalid') return 'st-cancelled';
+    return 'st-confirmed';
+  }
+  // Wall-clock day + minutes-from-midnight for an appointment.
+  function calPlace(a) {
+    const sp = parseIsoParts(a.startTime);
+    const ep = parseIsoParts(a.endTime);
+    let day;
+    let startMin;
+    let endMin;
+    let offset = null;
+    if (sp) {
+      day = `${sp.y}-${String(sp.mo).padStart(2, '0')}-${String(sp.d).padStart(2, '0')}`;
+      startMin = sp.h * 60 + +sp.mi;
+      offset = sp.offset;
+      endMin = ep ? ep.h * 60 + +ep.mi : startMin + 30;
+      if (ep && (ep.y !== sp.y || ep.mo !== sp.mo || ep.d !== sp.d)) endMin = 24 * 60;
+    } else {
+      const s = new Date(a.startTime);
+      const e = new Date(a.endTime || a.startTime);
+      day = calYmd(s);
+      startMin = s.getHours() * 60 + s.getMinutes();
+      endMin = calYmd(e) === day ? e.getHours() * 60 + e.getMinutes() : 24 * 60;
+    }
+    if (!(endMin > startMin)) endMin = startMin + 30;
+    return { day, startMin, endMin, offset, startLabel: sp ? fmt12h(sp.h, sp.mi) : new Date(a.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), endLabel: ep ? fmt12h(ep.h, ep.mi) : '' };
+  }
+  // Side-by-side lanes for overlapping appointments within one day.
+  function calLayout(items) {
+    items.sort((x, y) => x.startMin - y.startMin || y.endMin - x.endMin);
+    let cluster = [];
+    let clusterEnd = -1;
+    const flush = () => {
+      const lanes = [];
+      cluster.forEach((it) => {
+        let lane = lanes.findIndex((end) => end <= it.startMin);
+        if (lane === -1) { lane = lanes.length; lanes.push(0); }
+        lanes[lane] = it.endMin;
+        it.lane = lane;
+      });
+      cluster.forEach((it) => (it.lanes = lanes.length));
+      cluster = [];
+    };
+    items.forEach((it) => {
+      if (cluster.length && it.startMin >= clusterEnd) flush();
+      cluster.push(it);
+      clusterEnd = Math.max(clusterEnd, it.endMin);
+    });
+    if (cluster.length) flush();
+    return items;
+  }
+  function calHourLabel(h) {
+    if (h === 0 || h === 24) return '12 AM';
+    if (h === 12) return '12 PM';
+    return h < 12 ? `${h} AM` : `${h - 12} PM`;
+  }
+
   async function loadAppointments() {
     const list = document.getElementById('appointmentsList');
     const calendarId = document.getElementById('calendarSelect').value;
-    const dateStr = document.getElementById('calendarDate').value;
+    const dateInput = document.getElementById('calendarDate');
+    if (!dateInput.value) dateInput.value = calYmd(calToday());
+    const days = calDays();
+    const rangeLabel = document.getElementById('calRangeLabel');
+    if (rangeLabel) rangeLabel.textContent = calRangeLabel(days);
+    document.querySelectorAll('#calViewToggle [data-calview]').forEach((b) => b.classList.toggle('active', b.dataset.calview === calView));
     if (!calendarId) {
       list.innerHTML = '<div class="muted">Select a calendar.</div>';
       return;
@@ -2065,38 +2164,127 @@
     list.innerHTML = '<div class="loading">Loading…</div>';
     // GHL's /calendars/events endpoint expects startTime/endTime as epoch
     // milliseconds -- ISO strings are silently accepted (200 OK) but match
-    // nothing. When no date is picked, omit them entirely so the backend's
-    // wide default window applies (i.e. "show all").
-    let query = '';
-    if (dateStr) {
-      const dayStart = new Date(dateStr + 'T00:00:00').getTime();
-      const dayEnd = new Date(dateStr + 'T23:59:59').getTime();
-      query = `?start=${dayStart}&end=${dayEnd}`;
-    }
+    // nothing. Fetch a day either side of the visible range so appointments
+    // booked in a different timezone than the viewer's still land on their
+    // wall-clock day; anything outside the visible days is filtered below.
+    const first = days[0];
+    const last = days[days.length - 1];
+    const from = new Date(first.getFullYear(), first.getMonth(), first.getDate() - 1).getTime();
+    const to = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 2).getTime() - 1;
+    const requestKey = `${calendarId}|${from}|${to}`;
+    list.dataset.req = requestKey;
     try {
-      const { appointments } = await api(`/calendars/${calendarId}/appointments${query}`);
+      const { appointments } = await api(`/calendars/${calendarId}/appointments?start=${from}&end=${to}`);
+      if (list.dataset.req !== requestKey) return; // a newer request superseded this one
       appointmentsCache = appointments || [];
-      if (!appointmentsCache.length) {
-        list.innerHTML = `<div class="muted">No appointments booked${dateStr ? ' for this day' : ''}.</div>`;
-        return;
-      }
-      appointmentsCache.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-      list.innerHTML = appointmentsCache
-        .map(
-          (a) => `
-        <div class="appt-row" data-appt="${a.id}">
-          <span>${a.title || 'Appointment'}</span>
-          <span class="t">${new Date(a.startTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-        </div>`
-        )
-        .join('');
-      list.querySelectorAll('.appt-row').forEach((row) => {
-        row.addEventListener('click', () => openAppointmentDetail(row.dataset.appt));
-      });
+      renderCalendarGrid(days, appointmentsCache);
     } catch (err) {
-      list.innerHTML = `<div class="muted">${err.message}</div>`;
+      list.innerHTML = `<div class="muted">${escapeHtml(err.message)}</div>`;
     }
   }
+
+  function renderCalendarGrid(days, appointments) {
+    const list = document.getElementById('appointmentsList');
+    const dayKeys = days.map(calYmd);
+    const todayKey = calYmd(calToday());
+    const byDay = Object.fromEntries(dayKeys.map((k) => [k, []]));
+    let offset = null;
+    appointments.forEach((a) => {
+      const p = calPlace(a);
+      if (!byDay[p.day]) return;
+      if (!offset && p.offset) offset = p.offset;
+      byDay[p.day].push({ ...p, appt: a });
+    });
+    const visible = Object.values(byDay).flat();
+
+    // Working hours by default, stretched to fit anything booked outside them.
+    let startHour = 7;
+    let endHour = 20;
+    visible.forEach((it) => {
+      startHour = Math.min(startHour, Math.floor(it.startMin / 60));
+      endHour = Math.max(endHour, Math.ceil(it.endMin / 60));
+    });
+    endHour = Math.min(24, endHour);
+    const hours = endHour - startHour;
+    const bodyH = hours * CAL_HOUR_PX;
+    const minToPx = (m) => ((m - startHour * 60) / 60) * CAL_HOUR_PX;
+
+    const cols = days.length;
+    const gridCols = `64px repeat(${cols}, minmax(${cols === 1 ? 0 : 96}px, 1fr))`;
+    const tz = offset ? `UTC${offset}` : '';
+
+    const heads = days
+      .map((d, i) => {
+        const k = dayKeys[i];
+        const cls = k === todayKey ? ' today' : k < todayKey ? ' past' : '';
+        return `<div class="cal-head${cls}" style="grid-column:${i + 2};grid-row:1"><span class="dow">${d.toLocaleDateString(undefined, { weekday: 'short' })}</span><span class="dnum">${d.getDate()}</span></div>`;
+      })
+      .join('');
+
+    let lines = '';
+    for (let h = 0; h < hours; h++) {
+      lines += `<div class="cal-line" style="top:${h * CAL_HOUR_PX}px"></div><div class="cal-line half" style="top:${h * CAL_HOUR_PX + CAL_HOUR_PX / 2}px"></div>`;
+    }
+    let gutter = '';
+    for (let h = startHour + 1; h < endHour; h++) {
+      gutter += `<div class="cal-hour-label" style="top:${(h - startHour) * CAL_HOUR_PX}px">${calHourLabel(h)}</div>`;
+    }
+
+    const columns = days
+      .map((d, i) => {
+        const k = dayKeys[i];
+        const events = calLayout(byDay[k])
+          .map((it) => {
+            const top = minToPx(it.startMin);
+            const height = Math.max(22, minToPx(it.endMin) - top - 2);
+            const w = 100 / it.lanes;
+            const a = it.appt;
+            const title = escapeHtml(a.title || 'Appointment');
+            const time = `${it.startLabel}${it.endLabel ? ` – ${it.endLabel}` : ''}`;
+            const compact = height < 32;
+            return `<div class="cal-event ${calStatusClass(a)}${compact ? ' compact' : ''}" data-appt="${escapeHtml(a.id)}" title="${title} · ${escapeHtml(time)}" style="top:${top + 1}px;height:${height}px;left:calc(${w * it.lane}% + 3px);width:calc(${w}% - 6px)"><div class="ev-title">${title}</div><div class="ev-time">${escapeHtml(time)}</div></div>`;
+          })
+          .join('');
+        return `<div class="cal-col${k === todayKey ? ' today' : ''}" style="grid-column:${i + 2};grid-row:2;height:${bodyH}px">${lines}${events}</div>`;
+      })
+      .join('');
+
+    list.innerHTML = `
+      <div class="cal-grid${cols === 1 ? ' day-view' : ''}" style="grid-template-columns:${gridCols}">
+        <div class="cal-corner" style="grid-column:1;grid-row:1">${tz}</div>
+        ${heads}
+        <div class="cal-gutter" style="grid-column:1;grid-row:2;height:${bodyH}px">${gutter}</div>
+        ${columns}
+      </div>
+      ${visible.length ? '' : `<div class="cal-empty-note">No appointments booked ${cols === 1 ? 'this day' : 'this week'}.</div>`}`;
+
+    list.querySelectorAll('.cal-event').forEach((el) => {
+      el.addEventListener('click', () => openAppointmentDetail(el.dataset.appt));
+    });
+
+    // Open scrolled to the first appointment (or 8 AM), not midnight.
+    const firstMin = visible.length ? Math.min(...visible.map((it) => it.startMin)) : 8 * 60;
+    list.scrollTop = Math.max(0, minToPx(firstMin) - CAL_HOUR_PX / 2);
+  }
+
+  function calShift(dir) {
+    const a = calAnchor();
+    const step = calView === 'day' ? 1 : 7;
+    document.getElementById('calendarDate').value = calYmd(new Date(a.getFullYear(), a.getMonth(), a.getDate() + dir * step));
+    loadAppointments();
+  }
+  document.getElementById('calPrev')?.addEventListener('click', () => calShift(-1));
+  document.getElementById('calNext')?.addEventListener('click', () => calShift(1));
+  document.getElementById('calToday')?.addEventListener('click', () => {
+    document.getElementById('calendarDate').value = calYmd(calToday());
+    loadAppointments();
+  });
+  document.getElementById('calViewToggle')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-calview]');
+    if (!btn || btn.dataset.calview === calView) return;
+    calView = btn.dataset.calview;
+    loadAppointments();
+  });
 
   // GHL exposes no named timezone anywhere -- only the raw UTC offset baked
   // into each ISO datetime string. Parsing that literally (rather than via
